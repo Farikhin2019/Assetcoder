@@ -1,0 +1,145 @@
+/* ── SIMASET domain model — PRD v1.0 state machines & enums ── */
+
+export type View =
+  | "dashboard" | "equipment" | "equipment-detail" | "inventory" | "logistics" | "opname"
+  | "technical" | "complaints" | "procurement" | "reporting"
+  | "master" | "locations" | "approvals" | "audit" | "rbac";
+
+export type Role =
+  | "Direksi" | "Pengelola Aset" | "Pengelola Inventory" | "Kepala Gudang" | "Petugas Gudang"
+  | "Kepala Unit" | "Teknisi" | "Kepala Teknisi" | "Auditor" | "IT Administrator";
+
+export type OpStatus = "IN_SERVICE" | "MAINTENANCE" | "CALIBRATION" | "DOWN" | "RETIRED";
+export type CalStatus = "VALID" | "DUE_SOON" | "EXPIRED" | "FAILED" | "NOT_REQUIRED";
+export type Risk = "HIGH" | "MEDIUM" | "LOW";
+export type Criticality = "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
+export type Condition = "EXCELLENT" | "GOOD" | "FAIR" | "POOR";
+export type MaintType = "PREVENTIVE" | "CORRECTIVE" | "PREDICTIVE";
+export type WOStatus = "SCHEDULED" | "IN_PROGRESS" | "AWAITING_VERIFICATION" | "CLOSED";
+export type Priority = "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
+export type ComplaintStatus = "OPEN" | "ACKNOWLEDGED" | "IN_PROGRESS" | "WAITING_PART" | "WAITING_VENDOR" | "RESOLVED" | "VERIFIED" | "CLOSED";
+export type RepairStatus = "ASSESSED" | "AWAITING_APPROVAL" | "APPROVED" | "IN_PROGRESS" | "TESTING" | "CLOSED";
+export type TxType = "RECEIPT" | "TRANSFER" | "ISSUE" | "CONSUMPTION" | "RETURN" | "ADJUSTMENT" | "STOCK_OPNAME" | "EXPIRED" | "OPENING_BALANCE";
+export type EventType = "LIFECYCLE" | "MAINTENANCE" | "CALIBRATION" | "COMPLAINT" | "REPAIR" | "INSPECTION" | "SPARE_PART" | "TRANSFER" | "COST" | "DOCUMENT" | "PROCUREMENT" | "ASSIGNMENT";
+export type ApprovalType = "TRANSFER" | "ADJUSTMENT" | "REPAIR" | "PURCHASE" | "DISPOSAL";
+export type NotifKind =
+  | "LOW_STOCK" | "CALIBRATION_DUE" | "CALIBRATION_EXPIRED" | "MAINTENANCE_DUE" | "MAINTENANCE_OVERDUE"
+  | "COMPLAINT_CREATED" | "COMPLAINT_SLA_BREACH" | "APPROVAL_PENDING" | "STOCK_VARIANCE" | "ASSET_IDLE"
+  | "INSPECTION_DUE" | "CONTRACT_EXPIRING" | "REMINDER";
+
+/* ── entities ── */
+
+export interface Technician { id: string; name: string; specialty: string; cert: string; phone: string; vendor: boolean; }
+export interface Supplier { id: string; name: string; service: string; contractUntil: string; contact?: string; }
+export interface Accessory { id: string; code: string; name: string; eqId: string; qty: number; condition: Condition; note: string; }
+export interface Equipment {
+  id: string; code: string; name: string; category: string; brand: string; model: string; serial: string;
+  manufacturer: string; prodYear: number; acqDate: string; acqCost: number; supplierId: string; warrantyUntil: string;
+  building: string; floor: string; room: string; unit: string; custodian: string; pic: string;
+  condition: Condition; opStatus: OpStatus; risk: Risk; criticality: Criticality;
+  calRequired: boolean; calStatus: CalStatus; calLast: string | null; calDue: string | null;
+  maintStrategy: MaintType; lastMaint: string; nextMaint: string; lifecycle: number; utilization: number; mtbfHours: number;
+  docs: { name: string; size: string; kind: string; checksum: string; date: string }[];
+}
+export interface TimelineEvent { id: string; eqId: string; type: EventType; date: string; title: string; detail: string; actor: string; cost?: number; status?: string; }
+export interface InventoryItem { sku: string; name: string; category: string; uom: string; warehouse: string; batch: string | null; expiry: string | null; stock: number; min: number; max: number; reorder: number; unitCost: number; method: "FIFO" | "FEFO"; }
+export interface LedgerEntry { id: string; date: string; sku: string; type: TxType; qty: number; balance: number; actor: string; ref: string; reason?: string; }
+export interface SparePart { id: string; name: string; code: string; stock: number; min: number; unit: string; unitCost: number; eqIds: string[]; }
+
+export interface FormField { id: string; type: "text" | "number" | "checkbox" | "radio" | "select" | "date" | "measurement" | "passfail" | "instruction"; label: string; options?: string[]; unit?: string; required?: boolean; }
+export interface FormTemplate { id: string; name: string; fields: FormField[]; }
+export interface FormResult { id: string; woId: string; templateId: string; values: Record<string, string>; actor: string; date: string; }
+
+export interface WorkOrder { id: string; wo: string; eqId: string; type: MaintType; techId: string; scheduled: string; status: WOStatus; note: string; laborCost: number; templateId: string; }
+export interface CalibrationRecord { id: string; eqId: string; date: string; result: "PASS" | "FAIL" | "ADJUSTED"; cert: string; techId: string; nextDue: string; cost: number; }
+export interface Inspection { id: string; code: string; eqId: string; date: string; nextDue: string; inspector: string; checklist: { item: string; pass: boolean }[]; result: "PASS" | "FAIL" | "CONDITIONAL"; note: string; }
+export interface Complaint { id: string; code: string; eqId: string; date: string; reporter: string; priority: Priority; description: string; status: ComplaintStatus; slaHours: number; resolution?: string; timelineNote?: string; }
+export interface Repair { id: string; code: string; eqId: string; complaintId: string | null; diagnosis: string; partsUsed: { partId: string; qty: number }[]; laborCost: number; status: RepairStatus; techId: string; started: string; }
+export interface Approval { id: string; type: ApprovalType; ref: string; summary: string; requester: string; value: number; risk: Risk; matrix: string[]; status: "PENDING" | "APPROVED" | "REJECTED"; date: string; meta?: Record<string, string | number>; }
+
+export interface DemandPlan { id: string; code: string; item: string; qty: number; uom: string; estCost: number; unit: string; needBy: string; status: "DRAFT" | "SUBMITTED" | "REVIEWED" | "APPROVED" | "CONSOLIDATED"; by: string; }
+export interface PurchaseRequest { id: string; code: string; date: string; items: { sku: string; name: string; qty: number; estCost: number }[]; total: number; requester: string; status: "DRAFT" | "SUBMITTED" | "APPROVED" | "PO_CREATED"; }
+export interface PurchaseOrder { id: string; code: string; date: string; supplierId: string; items: { sku: string; name: string; qty: number; price: number }[]; total: number; eta: string; status: "SENT" | "PARTIAL" | "RECEIVED" | "CLOSED"; prRef: string; }
+
+export interface Receipt { id: string; ref: string; date: string; supplierId: string; sku: string; qty: number; batch: string | null; expiry: string | null; poRef: string | null; by: string; }
+export interface IssueRec { id: string; ref: string; date: string; sku: string; qty: number; dest: string; strategy: "FIFO" | "FEFO"; by: string; }
+export interface OpnameSession { id: string; code: string; date: string; status: "COUNTING" | "CLOSED"; by: string; items: { sku: string; name: string; uom: string; system: number; counted: number | null }[]; }
+export interface TransferRecord { id: string; ref: string; eqId: string; date: string; requester: string; fromRoom: string; toBuilding: string; toFloor: string; toRoom: string; reason: string; status: "PENDING" | "APPROVED" | "REJECTED"; decidedBy?: string; decidedAt?: string; }
+export interface Building { id: string; name: string; label: string; status: "PLANNED" | "ACTIVE" | "UNDER_RENOVATION" | "INACTIVE"; floors: string[]; year: number; note: string; }
+export interface RoomInfo { id: string; building: string; floor: string; name: string; unit: string; }
+export interface Warehouse { id: string; name: string; code: string; keeper: string; zones: string[]; capacityLoc: number; usedLoc: number; desc: string; }
+
+export interface AuditEntry { id: string; date: string; actor: string; role: string; action: string; entity: string; entityId: string; reason?: string; delta?: string; }
+export interface Notif { id: string; kind: NotifKind; msg: string; refId: string; date: string; read: boolean; }
+export interface Toast { id: string; msg: string; kind: "ok" | "warn" | "err" | "info"; }
+export type PermLevel = "full" | "view" | "none";
+
+/* ── reference data ── */
+
+export const LIFECYCLE_STAGES = ["PLANNED", "PROCURING", "RECEIVED", "INSTALLED", "REGISTERED", "COMMISSIONED", "IN_SERVICE", "RETIRED", "DISPOSED"] as const;
+export const ADJ_APPROVAL_THRESHOLD = 2_000_000;
+export const SLA_BY_PRIORITY: Record<Priority, number> = { CRITICAL: 4, HIGH: 8, MEDIUM: 24, LOW: 72 };
+export const CAL_CADENCE = [90, 60, 30, 14, 7];
+
+export const ROLE_USER: Record<Role, { name: string; initials: string }> = {
+  "Direksi": { name: "dr. Hartono Wibowo", initials: "HW" },
+  "Pengelola Aset": { name: "Rina Kusuma, S.T.", initials: "RK" },
+  "Kepala Gudang": { name: "Bambang Prasetyo", initials: "BP" },
+  "Petugas Gudang": { name: "Sari Melati", initials: "SM" },
+  "Kepala Unit": { name: "Ns. Dewi Lestari", initials: "DL" },
+  "Teknisi": { name: "Agus Firmansyah", initials: "AF" },
+  "Auditor": { name: "Yusuf Ramadhan", initials: "YR" },
+  "Pengelola Inventory": { name: "Galih Saputra", initials: "GS" },
+  "Kepala Teknisi": { name: "Hendra Wijaya", initials: "HW" },
+  "IT Administrator": { name: "Dian Pratiwi", initials: "DP" },
+};
+
+export const ROLES: Role[] = ["Direksi", "Pengelola Aset", "Pengelola Inventory", "Kepala Gudang", "Petugas Gudang", "Kepala Unit", "Teknisi", "Kepala Teknisi", "Auditor", "IT Administrator"];
+
+export const ROLE_SCOPE: Record<Role, string> = {
+  "Direksi": "Seluruh organisasi (multi-cabang ready)",
+  "Pengelola Aset": "Seluruh aset & gedung RS Harapan Medika",
+  "Pengelola Inventory": "Semua gudang + ledger inventory",
+  "Kepala Gudang": "Semua gudang (WH-01 s.d. WH-04)",
+  "Petugas Gudang": "Hanya Gudang BHP Medis (WH-01)",
+  "Kepala Unit": "Aset & stok di unit sendiri",
+  "Teknisi": "Work order & equipment yang ditugaskan",
+  "Kepala Teknisi": "Seluruh WO, kalibrasi & teknisi",
+  "Auditor": "Read-only global + audit trail penuh",
+  "IT Administrator": "Konfigurasi, RBAC & integrasi",
+};
+
+/* ── format helpers ── */
+
+export const DAY = 86_400_000;
+export const now = () => Date.now();
+export const d = (offsetDays: number, hour = 9) => {
+  const t = new Date(now() + offsetDays * DAY);
+  t.setHours(hour, Math.abs((offsetDays * 17) % 60), 0, 0);
+  return t.toISOString();
+};
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+export const fmtDate = (iso: string) => { const t = new Date(iso); return `${String(t.getDate()).padStart(2, "0")} ${MONTHS[t.getMonth()]} ${t.getFullYear()}`; };
+export const fmtTime = (iso: string) => { const t = new Date(iso); return `${String(t.getHours()).padStart(2, "0")}:${String(t.getMinutes()).padStart(2, "0")}`; };
+export const fmtDateTime = (iso: string) => `${fmtDate(iso)} · ${fmtTime(iso)}`;
+export const daysUntil = (iso: string) => Math.ceil((new Date(iso).getTime() - now()) / DAY);
+export const overdueBy = (iso: string) => Math.floor((now() - new Date(iso).getTime()) / DAY);
+export const fmtIDR = (n: number) => "Rp " + Math.round(n).toLocaleString("id-ID");
+export const fmtIDRCompact = (n: number) => {
+  if (n >= 1e9) return "Rp " + (n / 1e9).toLocaleString("id-ID", { maximumFractionDigits: 2 }) + " M";
+  if (n >= 1e6) return "Rp " + (n / 1e6).toLocaleString("id-ID", { maximumFractionDigits: 1 }) + " jt";
+  if (n >= 1e3) return "Rp " + (n / 1e3).toLocaleString("id-ID", { maximumFractionDigits: 0 }) + " rb";
+  return fmtIDR(n);
+};
+export const uid = () => Math.random().toString(36).slice(2, 9).toUpperCase();
+export const relTime = (iso: string) => {
+  const diff = now() - new Date(iso).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return "baru saja";
+  if (m < 60) return `${m} mnt lalu`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h} jam lalu`;
+  const dd = Math.floor(h / 24);
+  return dd === 1 ? "kemarin" : `${dd} hr lalu`;
+};
