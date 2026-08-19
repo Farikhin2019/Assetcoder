@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useApp } from "../lib/store";
 import { BtnGhost, BtnPrimary, BtnSm, Bar, Card, Chip, Input, Modal, MonoTag } from "../components/ui";
 import { IcCheck, IcLayers, IcPlus } from "../components/icons";
-import { ADJ_APPROVAL_THRESHOLD, fmtDateTime, fmtIDRCompact } from "../lib/types";
+import { fmtDateTime, fmtIDRCompact } from "../lib/types";
 
 const canOp = (role: string) => ["Kepala Gudang", "Petugas Gudang", "Pengelola Inventory", "Auditor", "Direksi"].includes(role);
 const canFinalize = (role: string) => ["Kepala Gudang", "Pengelola Inventory", "Direksi"].includes(role);
@@ -14,12 +14,13 @@ export default function Opname() {
   const allowed = canOp(s.role);
   const session = s.opnames.find((o) => o.id === openId);
 
+  const threshold = s.config.adjThreshold;
   const counted = session?.items.filter((i) => i.counted !== null) ?? [];
   const diffs = counted.filter((i) => i.counted !== i.system);
   const accuracy = counted.length ? Math.round(((counted.length - diffs.length) / counted.length) * 1000) / 10 : 100;
   const overThreshold = session ? diffs.filter((df) => {
     const it = s.items.find((x) => x.sku === df.sku);
-    return it ? Math.abs(df.counted! - df.system) * it.unitCost > ADJ_APPROVAL_THRESHOLD : false;
+    return it ? Math.abs(df.counted! - df.system) * it.unitCost > threshold : false;
   }) : [];
 
   const doFinalize = () => {
@@ -115,8 +116,8 @@ export default function Opname() {
                           {v === null ? <span className="font-mono text-[11px] text-mute">belum</span>
                             : v === 0 ? <Chip tone="ok">SAMA</Chip>
                             : <span className="inline-flex flex-col items-end">
-                              <Chip tone={val > ADJ_APPROVAL_THRESHOLD ? "danger" : "warn"} dot>{v > 0 ? `+${v}` : v}</Chip>
-                              {val > ADJ_APPROVAL_THRESHOLD && <span className="mt-0.5 font-mono text-[9px] font-bold text-danger">{fmtIDRCompact(val)} → approval</span>}
+                              <Chip tone={val > threshold ? "danger" : "warn"} dot>{v > 0 ? `+${v}` : v}</Chip>
+                              {val > threshold && <span className="mt-0.5 font-mono text-[9px] font-bold text-danger">{fmtIDRCompact(val)} → approval</span>}
                             </span>}
                         </td>
                       </tr>
@@ -142,7 +143,7 @@ export default function Opname() {
               <div className="rounded-md border border-warn/40 bg-warnbg px-3.5 py-3">
                 <p className="text-[12.5px] font-bold text-warn">Konfirmasi posting {diffs.length} selisih ke ledger?</p>
                 <p className="mt-1 text-[11.5px] leading-relaxed text-ink2">
-                  Selisih diposting sebagai transaksi STOCK_OPNAME (append-only, BR-008). Selisih bernilai di atas {fmtIDRCompact(ADJ_APPROVAL_THRESHOLD)} dirutekan ke approval matrix dulu (BR-005) — saat ini {overThreshold.length} item.
+                  Selisih diposting sebagai transaksi STOCK_OPNAME (append-only, BR-008). Selisih bernilai di atas {fmtIDRCompact(threshold)} dirutekan ke approval matrix dulu (BR-005) — saat ini {overThreshold.length} item.
                 </p>
                 <div className="mt-2.5 flex gap-2">
                   <BtnPrimary onClick={doFinalize}><IcCheck size={13} /> Ya, posting & tutup sesi</BtnPrimary>

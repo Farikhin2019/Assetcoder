@@ -1,9 +1,10 @@
 import {
-  Accessory, Approval, ApprovalMatrix, AuditEntry, BizContract, Building, CalibrationRecord, Complaint, Connector,
-  DemandPlan, DisposalRecord, Equipment, FormTemplate, Inspection, InventoryItem, IssueRec, LedgerEntry, Loan,
-  MobileTask, Notif, OpnameSession, PermLevel, PRLine, PRStageStatus, PurchaseOrder, PurchaseRequest, Receipt,
-  Rental, Repair, Role, RoomInfo, SparePart, StageDecision, Supplier, SyncEntry, SystemConfig, Technician,
-  TimelineEvent, TransferRecord, TxType, Warehouse, WorkOrder, d, isITSku, mkPendingStages, periodKey, uid,
+  Accessory, ActiveSession, ApiEndpoint, Approval, ApprovalMatrix, AuditEntry, BizContract, Branch, Building,
+  CalibrationRecord, Complaint, Connector, DemandPlan, DisposalRecord, Equipment, FormTemplate, Inspection,
+  InventoryItem, IssueRec, LedgerEntry, Loan, MobileTask, Notif, OpnameSession, PermLevel, PRLine, PRStageStatus,
+  PurchaseOrder, PurchaseRequest, Receipt, Rental, Repair, Role, RoomInfo, SparePart, StageDecision, Supplier,
+  SyncEntry, SystemConfig, Technician, TimelineEvent, TransferRecord, TxType, Warehouse, WorkOrder,
+  d, isITSku, mkPendingStages, periodKey, uid,
 } from "./types";
 
 /* ── people & partners ── */
@@ -543,4 +544,34 @@ export const EVENT_CATALOG: { event: string; desc: string; channel: string }[] =
   { event: "CONTRACT_EXPIRING", desc: "Kontrak supplier/jasa < 60 hari", channel: "UPBJ · Pengelola Aset" },
   { event: "ASSET_IDLE", desc: "Utilisasi aset rendah terdeteksi", channel: "Pengelola Aset · COO" },
   { event: "STOCK_VARIANCE", desc: "Selisih stock opname ditemukan", channel: "Kepala Gudang · Auditor" },
+];
+
+/* ── Phase 7: multi-branch, API health, sessions ── */
+
+export const BRANCHES: Branch[] = [
+  { id: "BR-01", code: "PUSAT", name: "RS Harapan Medika — Pusat", city: "Bandung", status: "ACTIVE", assets: 16, value: 33_400_000_000, util: 64, openIssues: 7 },
+  { id: "BR-02", code: "CIMAHI", name: "RS Harapan Medika — Cimahi", city: "Cimahi", status: "ACTIVE", assets: 34, value: 18_900_000_000, util: 58, openIssues: 3 },
+  { id: "BR-03", code: "SOREANG", name: "RS Harapan Medika — Soreang", city: "Kab. Bandung", status: "ACTIVE", assets: 21, value: 9_600_000_000, util: 51, openIssues: 2 },
+  { id: "BR-04", code: "PADALARANG", name: "RS Harapan Medika — Padalarang", city: "KBB", status: "SETUP", assets: 0, value: 0, util: 0, openIssues: 0 },
+];
+
+export const API_ENDPOINTS: ApiEndpoint[] = [
+  { path: "/api/v1/dashboard", method: "GET", p95: 410, rpm: 96, errRate: 0.1 },
+  { path: "/api/v1/assets", method: "GET", p95: 180, rpm: 240, errRate: 0 },
+  { path: "/api/v1/equipment/{id}/timeline", method: "GET", p95: 320, rpm: 120, errRate: 0.2 },
+  { path: "/api/v1/inventory/transactions", method: "GET", p95: 260, rpm: 310, errRate: 0 },
+  { path: "/api/v1/inventory/requests", method: "POST", p95: 380, rpm: 42, errRate: 0.4 },
+  { path: "/api/v1/maintenance", method: "GET", p95: 290, rpm: 88, errRate: 0.1 },
+  { path: "/api/v1/calibration", method: "GET", p95: 240, rpm: 60, errRate: 0 },
+  { path: "/api/v1/complaints", method: "POST", p95: 350, rpm: 18, errRate: 0.3 },
+  { path: "/api/v1/stock-opnames", method: "GET", p95: 460, rpm: 24, errRate: 0.2 },
+  { path: "/api/v1/approvals/{id}/decide", method: "POST", p95: 300, rpm: 30, errRate: 0.1 },
+];
+
+export const ACTIVE_SESSIONS: ActiveSession[] = [
+  { id: "SES-1", user: "Rina Kusuma, S.T.", role: "Pengelola Aset", device: "Chrome · Windows", ip: "10.8.4.21", since: d(0, 6), mfa: true },
+  { id: "SES-2", user: "Bambang Prasetyo", role: "Kepala Gudang", device: "Chrome · Android", ip: "10.8.4.55", since: d(0, 7), mfa: true },
+  { id: "SES-3", user: "Agus Firmansyah", role: "Teknisi", device: "PWA · Android (field)", ip: "10.9.2.14", since: d(0, 8), mfa: true },
+  { id: "SES-4", user: "dr. Hartono Wibowo", role: "Direksi", device: "Safari · iPad", ip: "10.8.6.90", since: d(0, 9), mfa: true },
+  { id: "SES-5", user: "Yusuf Ramadhan", role: "Auditor", device: "Firefox · Linux", ip: "10.8.4.77", since: d(0, 10), mfa: false },
 ];

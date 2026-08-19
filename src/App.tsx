@@ -33,6 +33,8 @@ import Integrations from "./views/Integrations";
 import NotificationCenter from "./views/NotificationCenter";
 import AssetLedger from "./views/AssetLedger";
 import Config from "./views/Config";
+import Command from "./views/Command";
+import ComplianceView from "./views/Compliance";
 
 const TITLES: Record<View, string> = {
   dashboard: "Dashboard", equipment: "Equipment Registry", "equipment-detail": "Equipment 360°",
@@ -44,6 +46,7 @@ const TITLES: Record<View, string> = {
   intelligence: "Enterprise Intelligence",
   mobile: "Mobile Field Ops (PWA)", disposal: "Retirement & Disposal", integrations: "Integration Hub",
   notifications: "Pusat Notifikasi", assetledger: "Buku Aset (Fixed Assets)", config: "Konfigurasi Sistem",
+  command: "Executive Command Center", compliance: "Security & Compliance",
 };
 
 function Clock() {

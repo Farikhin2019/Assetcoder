@@ -6,7 +6,8 @@ export type View =
   | "master" | "locations" | "approvals" | "audit" | "rbac"
   | "utilization" | "rental" | "depreciation" | "intelligence"
   | "mobile" | "disposal" | "integrations"
-  | "notifications" | "assetledger" | "config";
+  | "notifications" | "assetledger" | "config"
+  | "command" | "compliance";
 
 export type Role =
   | "Direksi" | "Pengelola Aset" | "Pengelola Inventory" | "Kepala Gudang" | "Petugas Gudang"
@@ -129,6 +130,14 @@ export interface SystemConfig {
   approvalMatrix: ApprovalMatrix;
 }
 export interface AssetClassRow { id: string; code: string; name: string; klass: "GEDUNG" | "RUANGAN" | "ALKES" | "KENDARAAN"; location: string; custodian: string; condition: string; status: string; cost: number; book: number; }
+
+/* ── Phase 7: command center & compliance ── */
+
+export interface Branch { id: string; code: string; name: string; city: string; status: "ACTIVE" | "SETUP"; assets: number; value: number; util: number; openIssues: number; }
+export type ComplianceStatus = "PASS" | "FLAG" | "NA";
+export interface ComplianceCheck { id: string; rule: string; domain: "Asset" | "Inventory" | "Teknis" | "Governance"; desc: string; status: ComplianceStatus; detail: string; }
+export interface ApiEndpoint { path: string; method: string; p95: number; rpm: number; errRate: number; }
+export interface ActiveSession { id: string; user: string; role: Role; device: string; ip: string; since: string; mfa: boolean; }
 
 /* ── Phase 3: utilization, rental/loan, BGS/SGB, contracts, depreciation ── */
 
