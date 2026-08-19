@@ -82,7 +82,10 @@ type Act =
   | { t: "RENTAL_CREATE"; eqId: string; party: string; perDay: number; days: number }
   | { t: "RENTAL_END"; id: string }
   | { t: "DEPRECIATE_POST" }
-  | { t: "LOG_USAGE"; eqId: string; hours: number };
+  | { t: "LOG_USAGE"; eqId: string; hours: number }
+  | { t: "INTEL_AUDIT"; action: string; entity: string; entityId: string; reason?: string; delta?: string }
+  | { t: "AUTO_PR"; lines: { sku: string; name: string; qty: number; estCost: number }[] }
+  | { t: "APPLY_REC"; sku: string; min: number; reorder: number; max: number };
 
 const now = () => new Date().toISOString();
 const mkAudit = (actor: string, role: string, action: string, entity: string, entityId: string, reason?: string, delta?: string): AuditEntry => ({ id: "AUD-" + uid(), date: now(), actor, role, action, entity, entityId, reason, delta });
@@ -641,6 +644,38 @@ function reducer(s: AppState, a: Act): AppState {
       };
     }
 
+    /* ── Phase 4: intelligence actions ── */
+    case "INTEL_AUDIT":
+      return {
+        ...s,
+        audit: [mkAudit(me.name, s.role, a.action, a.entity, a.entityId, a.reason, a.delta), ...s.audit],
+        toasts: [...s.toasts, okToast("Tercatat di audit trail (intelligence event)", "info")],
+      };
+
+    case "AUTO_PR": {
+      const code = "PR-2608-" + String(12 + s.purchaseRequests.length).padStart(3, "0");
+      const total = a.lines.reduce((x, l) => x + l.qty * l.estCost, 0);
+      const pr = { id: "PR-" + uid(), code, date: now(), items: a.lines.map((l) => ({ sku: l.sku, name: l.name, qty: l.qty, estCost: l.estCost })), total, requester: "AI Procurement Engine", status: "SUBMITTED" as const };
+      const apr = { id: "APR-" + uid(), type: "PURCHASE" as const, ref: code, requester: "AI Procurement Engine", value: total, risk: (total > 20_000_000 ? "MEDIUM" : "LOW") as "MEDIUM" | "LOW", summary: `PR otomatis (AI): ${a.lines.length} SKU — ${a.lines.map((l) => l.name).join(", ").slice(0, 60)}…`, matrix: ["Kepala Gudang", "UPBJ", "Manajemen"], status: "PENDING" as const, date: now(), meta: { prId: pr.id, sku: a.lines[0]?.sku ?? "" } };
+      return {
+        ...s,
+        purchaseRequests: [pr, ...s.purchaseRequests], approvals: [apr, ...s.approvals],
+        audit: [mkAudit(me.name, s.role, "PROCUREMENT.AUTO_PR", "purchase_request", code, "Rekomendasi AI Procurement Engine (forecast + coverage)", fmtIDR(total)), ...s.audit],
+        notifs: [mkNotif("APPROVAL_PENDING", `PR otomatis ${code} (${fmtIDR(total)}) menunggu persetujuan pengadaan.`, a.lines[0]?.sku ?? "AI"), ...s.notifs],
+        toasts: [...s.toasts, okToast(`PR ${code} dibuat otomatis oleh AI — masuk Approval Engine`)],
+      };
+    }
+
+    case "APPLY_REC": {
+      const item = s.items.find((i) => i.sku === a.sku)!;
+      return {
+        ...s,
+        items: s.items.map((i) => (i.sku === a.sku ? { ...i, min: a.min, reorder: a.reorder, max: a.max } : i)),
+        audit: [mkAudit(me.name, s.role, "CONFIG.OPTIMIZE", "item", a.sku, "Rekomendasi AI Inventory Optimization (SS + ROP + EOQ)", `min ${item.min}→${a.min} · ROP ${item.reorder}→${a.reorder} · max ${item.max}→${a.max}`), ...s.audit],
+        toasts: [...s.toasts, okToast(`Parameter ${item.name} dioptimalkan (min ${a.min} · ROP ${a.reorder})`)],
+      };
+    }
+
     default: return s;
   }
 }
@@ -677,6 +712,9 @@ interface Api {
   advanceLoan: (id: string) => void; returnLoan: (id: string, condition: string) => void; closeLoan: (id: string) => void;
   createRental: (eqId: string, party: string, perDay: number, days: number) => void; endRental: (id: string) => void;
   postDepreciation: () => void; logUsage: (eqId: string, hours: number) => void;
+  intelAudit: (action: string, entity: string, entityId: string, reason?: string, delta?: string) => void;
+  autoPr: (lines: { sku: string; name: string; qty: number; estCost: number }[]) => void;
+  applyRec: (sku: string, min: number, reorder: number, max: number) => void;
 }
 
 const Ctx = createContext<Api | null>(null);
@@ -727,6 +765,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     endRental: (id) => dispatch({ t: "RENTAL_END", id }),
     postDepreciation: () => dispatch({ t: "DEPRECIATE_POST" }),
     logUsage: (eqId, hours) => dispatch({ t: "LOG_USAGE", eqId, hours }),
+    intelAudit: (action, entity, entityId, reason, delta) => dispatch({ t: "INTEL_AUDIT", action, entity, entityId, reason, delta }),
+    autoPr: (lines) => dispatch({ t: "AUTO_PR", lines }),
+    applyRec: (sku, min, reorder, max) => dispatch({ t: "APPLY_REC", sku, min, reorder, max }),
   }), [s]);
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>;
 }

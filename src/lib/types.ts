@@ -4,7 +4,7 @@ export type View =
   | "dashboard" | "equipment" | "equipment-detail" | "inventory" | "logistics" | "opname"
   | "technical" | "complaints" | "procurement" | "reporting"
   | "master" | "locations" | "approvals" | "audit" | "rbac"
-  | "utilization" | "rental" | "depreciation";
+  | "utilization" | "rental" | "depreciation" | "intelligence";
 
 export type Role =
   | "Direksi" | "Pengelola Aset" | "Pengelola Inventory" | "Kepala Gudang" | "Petugas Gudang"
