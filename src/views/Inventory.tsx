@@ -143,7 +143,7 @@ export default function Inventory() {
       <Modal open={!!adj} onClose={() => setAdj(null)} kicker="Stock adjustment · BR-004/005" title={`Adjust — ${adjItem?.name ?? ""}`}
         footer={<><BtnSm onClick={() => setAdj(null)} className="!py-2">Batal</BtnSm><button onClick={submitAdj} className="inline-flex items-center gap-1.5 rounded-md bg-pine-700 px-3.5 py-2 font-display text-[12.5px] font-bold text-pine-50 hover:bg-pine-800">Posting adjustment</button></>}>
         <div className="space-y-3.5">
-          <p className="rounded-md border border-line bg-canvas/60 px-3 py-2 font-mono text-[11px] text-ink2">Saldo saat ini: <b>{adjItem?.stock} {adjItem?.uom}</b> · threshold approval {fmtIDR(ADJ_APPROVAL_THRESHOLD)}</p>
+          <p className="rounded-md border border-line bg-canvas/60 px-3 py-2 font-mono text-[11px] text-ink2">Saldo saat ini: <b>{adjItem?.stock} {adjItem?.uom}</b> · threshold approval {fmtIDR(s.config.adjThreshold)}</p>
           <div><Label>Delta (+/-) *</Label><Input type="number" value={delta} onChange={(e) => setDelta(e.target.value)} placeholder="cth: -6 atau +12" /></div>
           <div><Label>Alasan (wajib — BR-004) *</Label><TextArea value={reason} onChange={(e) => setReason(e.target.value)} placeholder="cth: selisih hitung fisik, kerusakan, kedaluwarsa…" /></div>
           {adjItem && Number(delta) !== 0 && (

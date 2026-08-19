@@ -1,9 +1,9 @@
 import {
-  Accessory, Approval, AuditEntry, BizContract, Building, CalibrationRecord, Complaint, Connector, DemandPlan,
-  DisposalRecord, Equipment, FormTemplate, Inspection, InventoryItem, IssueRec, LedgerEntry, Loan, MobileTask,
-  Notif, OpnameSession, PermLevel, PRLine, PRStageStatus, PurchaseOrder, PurchaseRequest, Receipt, Rental, Repair,
-  Role, RoomInfo, SparePart, StageDecision, Supplier, SyncEntry, Technician, TimelineEvent, TransferRecord, TxType,
-  Warehouse, WorkOrder, d, isITSku, mkPendingStages, periodKey, uid,
+  Accessory, Approval, ApprovalMatrix, AuditEntry, BizContract, Building, CalibrationRecord, Complaint, Connector,
+  DemandPlan, DisposalRecord, Equipment, FormTemplate, Inspection, InventoryItem, IssueRec, LedgerEntry, Loan,
+  MobileTask, Notif, OpnameSession, PermLevel, PRLine, PRStageStatus, PurchaseOrder, PurchaseRequest, Receipt,
+  Rental, Repair, Role, RoomInfo, SparePart, StageDecision, Supplier, SyncEntry, SystemConfig, Technician,
+  TimelineEvent, TransferRecord, TxType, Warehouse, WorkOrder, d, isITSku, mkPendingStages, periodKey, uid,
 } from "./types";
 
 /* ── people & partners ── */
@@ -471,3 +471,76 @@ export const ROLE_PERMS: Record<Role, PermLevel[]> = {
 };
 
 export const DEST_UNITS = ["IGD", "ICU", "ICCU", "NICU", "Kamar Operasi", "Hemodialisa", "Radiologi", "Laboratorium", "CSSD", "Rawat Inap", "Poli Gigi", "Farmasi"];
+
+/* ── Phase 6: configuration defaults, building valuation, event catalog ── */
+
+export const APPROVAL_MATRIX_DEFAULT: ApprovalMatrix = {
+  PURCHASE: [
+    { label: "IT / UMUM", roles: ["IT Administrator", "Pengelola Inventory"] },
+    { label: "Keuangan", roles: ["Finance"] },
+    { label: "COO", roles: ["COO"] },
+  ],
+  TRANSFER: [
+    { label: "Kepala Unit asal", roles: ["Kepala Unit"] },
+    { label: "Pengelola Aset", roles: ["Pengelola Aset"] },
+    { label: "Kepala Unit tujuan", roles: ["Kepala Unit"] },
+  ],
+  ADJUSTMENT: [
+    { label: "Kepala Gudang", roles: ["Kepala Gudang"] },
+    { label: "Pengelola Inventory", roles: ["Pengelola Inventory"] },
+    { label: "Manajemen", roles: ["Direksi", "COO"] },
+  ],
+  REPAIR: [
+    { label: "Kepala Teknisi", roles: ["Kepala Teknisi"] },
+    { label: "Pengelola Aset", roles: ["Pengelola Aset"] },
+  ],
+  DISPOSAL: [
+    { label: "Pengelola Aset", roles: ["Pengelola Aset"] },
+    { label: "Keuangan", roles: ["Finance"] },
+    { label: "COO / Direksi", roles: ["COO", "Direksi"] },
+  ],
+  LOAN: [
+    { label: "Kepala Unit asal", roles: ["Kepala Unit"] },
+    { label: "Pengelola Aset", roles: ["Pengelola Aset"] },
+  ],
+};
+
+export const CONFIG_DEFAULT: SystemConfig = {
+  orgName: "PT Harapan Medika Sejahtera",
+  hospital: "RS Harapan Medika",
+  adjThreshold: 2_000_000,
+  negativeStockAllowed: false,
+  slaByPriority: { CRITICAL: 4, HIGH: 8, MEDIUM: 24, LOW: 72 },
+  calCadence: [90, 60, 30, 14, 7],
+  itemCategories: ["Alkes Habis Pakai", "Infus & Cairan", "Reagen Lab", "ATK Medis", "IT & Komputer", "Linen"],
+  uoms: ["box", "pcs", "set", "pack", "flabot", "roll", "unit"],
+  channels: { "in-app": true, email: true, whatsapp: false, push: true },
+  approvalMatrix: APPROVAL_MATRIX_DEFAULT,
+};
+
+export const BUILDING_VALUES: Record<string, { cost: number; book: number; year: number; custodian: string; condition: string }> = {
+  "Gedung A": { cost: 21_500_000_000, book: 16_800_000_000, year: 2016, custodian: "Bagian Umum", condition: "GOOD" },
+  "Gedung B": { cost: 18_200_000_000, book: 15_900_000_000, year: 2019, custodian: "Bagian Umum", condition: "EXCELLENT" },
+  "Gedung C": { cost: 26_800_000_000, book: 22_100_000_000, year: 2018, custodian: "Bagian Umum", condition: "GOOD" },
+  "Gedung D": { cost: 15_400_000_000, book: 9_200_000_000, year: 2012, custodian: "Bagian Umum", condition: "FAIR" },
+  "Gedung E": { cost: 48_000_000_000, book: 0, year: 2027, custodian: "PT Graha Medika Investama (BGS)", condition: "—" },
+};
+
+export const EVENT_CATALOG: { event: string; desc: string; channel: string }[] = [
+  { event: "LOW_STOCK", desc: "Stok menyentuh reorder point", channel: "Pengelola Inventory · Kepala Gudang" },
+  { event: "EXPIRING_ITEM", desc: "Item mendekati kedaluwarsa (FEFO)", channel: "Gudang Farmasi" },
+  { event: "ASSET_TRANSFER_REQUEST", desc: "Permintaan transfer aset masuk", channel: "Pengelola Aset · Kepala Unit" },
+  { event: "APPROVAL_PENDING", desc: "Transaksi menunggu persetujuan", channel: "Approver sesuai matrix" },
+  { event: "MAINTENANCE_DUE", desc: "Jadwal PM akan jatuh tempo", channel: "Teknisi · Kepala Teknisi" },
+  { event: "MAINTENANCE_OVERDUE", desc: "PM melewati jadwal", channel: "Kepala Teknisi · Manajemen" },
+  { event: "CALIBRATION_DUE", desc: "Kalibrasi akan jatuh tempo (cadence)", channel: "Teknisi · Pengelola Aset" },
+  { event: "CALIBRATION_EXPIRED", desc: "Sertifikat kalibrasi kedaluwarsa", channel: "Eskalasi Manajemen" },
+  { event: "COMPLAINT_CREATED", desc: "Keluhan baru tercatat", channel: "Teknisi sesuai alat" },
+  { event: "COMPLAINT_SLA_BREACH", desc: "Keluhan melewati SLA prioritas", channel: "Eskalasi Kepala Unit" },
+  { event: "REPAIR_CREATED", desc: "Perbaikan dimulai", channel: "Kepala Teknisi" },
+  { event: "REPAIR_OVERDUE", desc: "Perbaikan melewati target", channel: "Manajemen" },
+  { event: "INSPECTION_DUE", desc: "Inspeksi keselamatan terjadwal", channel: "Teknisi elektromedik" },
+  { event: "CONTRACT_EXPIRING", desc: "Kontrak supplier/jasa < 60 hari", channel: "UPBJ · Pengelola Aset" },
+  { event: "ASSET_IDLE", desc: "Utilisasi aset rendah terdeteksi", channel: "Pengelola Aset · COO" },
+  { event: "STOCK_VARIANCE", desc: "Selisih stock opname ditemukan", channel: "Kepala Gudang · Auditor" },
+];

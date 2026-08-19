@@ -3,7 +3,7 @@ import { StoreProvider, useApp } from "./lib/store";
 import { Chip, ToastHost } from "./components/ui";
 import {
   IcBell, IcBolt, IcBox, IcChart, IcCheck, IcChevD, IcClose, IcClock, IcFlag, IcGauge, IcHospital, IcLedger,
-  IcLayers, IcPin, IcPlus, IcPulse, IcScan, IcScroll, IcSearch, IcShield, IcStamp, IcSwap, IcTruck, IcUser, IcWarn, IcWrench, IcCart, IcPhone, IcX,
+  IcLayers, IcPin, IcPlus, IcPulse, IcScan, IcScroll, IcSearch, IcShield, IcStamp, IcSwap, IcTruck, IcUser, IcWarn, IcWrench, IcCart, IcPhone, IcX, IcForm,
 } from "./components/icons";
 import { ROLES, ROLE_USER, Role, View, fmtDate, relTime } from "./lib/types";
 import { anomalies } from "./lib/intel";
@@ -30,6 +30,9 @@ import Intelligence from "./views/Intelligence";
 import Mobile from "./views/Mobile";
 import Disposal from "./views/Disposal";
 import Integrations from "./views/Integrations";
+import NotificationCenter from "./views/NotificationCenter";
+import AssetLedger from "./views/AssetLedger";
+import Config from "./views/Config";
 
 const TITLES: Record<View, string> = {
   dashboard: "Dashboard", equipment: "Equipment Registry", "equipment-detail": "Equipment 360°",
@@ -40,6 +43,7 @@ const TITLES: Record<View, string> = {
   utilization: "Asset Utilization", rental: "Sewa, Pinjaman & BGS/SGB", depreciation: "Depreciation",
   intelligence: "Enterprise Intelligence",
   mobile: "Mobile Field Ops (PWA)", disposal: "Retirement & Disposal", integrations: "Integration Hub",
+  notifications: "Pusat Notifikasi", assetledger: "Buku Aset (Fixed Assets)", config: "Konfigurasi Sistem",
 };
 
 function Clock() {
@@ -136,6 +140,7 @@ function Shell() {
   const searchRef = useRef<HTMLInputElement>(null);
   const pending = s.approvals.filter((a) => a.status === "PENDING").length;
   const pendingAnomalies = anomalies(s).length;
+  const unread = s.notifs.filter((n) => !n.read).length;
   const active = s.view === "equipment-detail" ? "equipment" : s.view;
 
   useEffect(() => {
@@ -189,6 +194,11 @@ function Shell() {
       { id: "audit", label: "Audit Trail", icon: <IcScroll size={15} /> },
       { id: "rbac", label: "Peran & Akses", icon: <IcShield size={15} /> },
     ]},
+    { group: "Konsolidasi", items: [
+      { id: "assetledger", label: "Buku Aset", icon: <IcHospital size={15} /> },
+      { id: "notifications", label: "Pusat Notifikasi", icon: <IcBell size={15} />, badge: unread },
+      { id: "config", label: "Konfigurasi", icon: <IcForm size={15} /> },
+    ]},
   ];
 
   return (
@@ -235,7 +245,7 @@ function Shell() {
           <div className="mx-1 mt-2 rounded-md border border-pine-800 bg-pine-950/50 p-2.5">
             <p className="font-mono text-[8.5px] font-bold uppercase tracking-[0.16em] text-pine-500">Phase roadmap</p>
             <div className="mt-1.5 space-y-1">
-              {[["P1 Core Inventory & Asset", true], ["P2 Technical Operations", true], ["P3 Utilization & Finance", true], ["P4 Enterprise Intelligence", true], ["P5 Field Ops & Integration", true]].map(([label, on]) => (
+              {[["P1 Core Inventory & Asset", true], ["P2 Technical Operations", true], ["P3 Utilization & Finance", true], ["P4 Enterprise Intelligence", true], ["P5 Field Ops & Integration", true], ["P6 Consolidation & Governance", true]].map(([label, on]) => (
                 <p key={label as string} className="flex items-center gap-1.5 font-mono text-[9.5px] text-pine-100/70">
                   {on ? <IcCheck size={10} className="text-pine-500" /> : <IcClose size={10} className="text-pine-700" />} {label}
                 </p>
@@ -332,9 +342,12 @@ function Shell() {
             {s.view === "mobile" && <Mobile />}
             {s.view === "disposal" && <Disposal />}
             {s.view === "integrations" && <Integrations />}
+            {s.view === "notifications" && <NotificationCenter />}
+            {s.view === "assetledger" && <AssetLedger />}
+            {s.view === "config" && <Config />}
           </div>
           <footer className="mx-auto flex max-w-[1240px] flex-wrap items-center justify-between gap-2 px-4 pb-5 lg:px-6">
-            <p className="font-mono text-[10px] text-mute">SIMASET v4.0 · PRD 18 Aug 2026 · Phase 1–4 complete · AI Intelligence live · transaction-driven · full traceability</p>
+            <p className="font-mono text-[10px] text-mute">SIMASET v6.0 · PRD 18 Aug 2026 · Phase 1–6 complete · Buku Aset · Notifikasi · Konfigurasi · full traceability</p>
             <p className="flex items-center gap-1.5 font-mono text-[10px] text-mute"><IcPhone size={11} className="text-pine-600" /> Mobile/PWA: offline queue + QR scan <span className="mx-1 text-line2">·</span> <IcWarn size={11} className="text-warnhi" /> API p95 &lt; 500ms · availability 99,9%</p>
           </footer>
         </main>

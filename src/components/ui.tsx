@@ -36,6 +36,7 @@ export function chipFor(status: string): Tone {
     CONNECTED: "ok", DEGRADED: "warn", OFFLINE: "danger",
     SYNCED: "ok", QUEUED: "warn", DOWNLOADED: "info", ASSIGNED: "neutral",
     LELANG: "pine", HIBAH: "info", PEMUSNAHAN: "danger", PENJUALAN: "warn",
+    GEDUNG: "pine", RUANGAN: "info", ALKES: "ok", KENDARAAN: "warn",
   };
   return map[status] ?? "neutral";
 }

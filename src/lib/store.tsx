@@ -1,17 +1,17 @@
 import React, { createContext, useContext, useMemo, useReducer } from "react";
 import {
-  ADJ_APPROVAL_THRESHOLD, Accessory, AuditEntry, BizContract, Complaint, Connector, DEPR_SALVAGE, DepreciationTx,
-  DisposalRecord, Equipment, FormResult, Inspection, InventoryItem, isITSku, LedgerEntry, Loan, mkPendingStages,
-  MobileTask, Notif, NotifKind, OpnameSession, PRLine, Priority, PurchaseOrder, Rental, Repair, Role, ROLE_USER,
-  SLA_BY_PRIORITY, StageDecision, SyncEntry, TimelineEvent, Toast, TransferRecord, TxType, View, WorkOrder,
-  d, daysUntil, fmtIDR, lifeYears, lineActiveStage, lineState, lineTotal, monthlyDep, periodKey, prStageLabels,
-  prStageRole, prState, uid,
+  ADJ_APPROVAL_THRESHOLD, Accessory, ApprovalMatrix, AuditEntry, BizContract, Complaint, Connector, DEPR_SALVAGE,
+  DepreciationTx, DisposalRecord, Equipment, FormResult, Inspection, InventoryItem, isITSku, LedgerEntry, Loan,
+  mkPendingStages, MobileTask, Notif, NotifChannel, NotifKind, OpnameSession, PRLine, Priority, PurchaseOrder,
+  Rental, Repair, Role, ROLE_USER, SLA_BY_PRIORITY, StageDecision, SyncEntry, SystemConfig, TimelineEvent, Toast,
+  TransferRecord, TxType, View, WorkOrder, d, daysUntil, fmtIDR, lifeYears, lineActiveStage, lineState, lineTotal,
+  monthlyDep, periodKey, prStageLabels, prStageRole, prState, uid,
 } from "./types";
 import {
-  ACCESSORIES, APPROVALS, AUDIT, BUILDINGS, CALIBRATIONS, COMPLAINTS, CONNECTORS, CONTRACTS, DEMAND_PLANS,
-  DEPR_POSTED, DISPOSALS, EQUIPMENT, FORM_TEMPLATES, INSPECTIONS, ISSUES, ITEMS, LEDGER_INIT, LOANS, MOBILE_TASKS,
-  NOTIFS, OPNAMES, PURCHASE_ORDERS, PURCHASE_REQUESTS, RECEIPTS, RENTALS, REPAIRS, SPARE_PARTS, SUPPLIERS,
-  SYNC_LOG, TECHNICIANS, TIMELINE, TRANSFERS, UTIL_SERIES, WORK_ORDERS,
+  ACCESSORIES, APPROVALS, AUDIT, BUILDINGS, CALIBRATIONS, COMPLAINTS, CONFIG_DEFAULT, CONNECTORS, CONTRACTS,
+  DEMAND_PLANS, DEPR_POSTED, DISPOSALS, EQUIPMENT, FORM_TEMPLATES, INSPECTIONS, ISSUES, ITEMS, LEDGER_INIT, LOANS,
+  MOBILE_TASKS, NOTIFS, OPNAMES, PURCHASE_ORDERS, PURCHASE_REQUESTS, RECEIPTS, RENTALS, REPAIRS, SPARE_PARTS,
+  SUPPLIERS, SYNC_LOG, TECHNICIANS, TIMELINE, TRANSFERS, UTIL_SERIES, WORK_ORDERS,
 } from "./data";
 
 export interface AppState {
@@ -26,6 +26,7 @@ export interface AppState {
   loans: Loan[]; rentals: Rental[]; contracts: BizContract[];
   deprPosted: Record<string, string[]>; utilSeries: Record<string, number[]>;
   disposals: DisposalRecord[]; connectors: Connector[]; mobileTasks: MobileTask[]; syncLog: SyncEntry[];
+  config: SystemConfig;
   audit: AuditEntry[]; notifs: Notif[]; toasts: Toast[];
 }
 
@@ -41,6 +42,7 @@ const INIT: AppState = {
   loans: LOANS, rentals: RENTALS, contracts: CONTRACTS,
   deprPosted: DEPR_POSTED, utilSeries: UTIL_SERIES,
   disposals: DISPOSALS, connectors: CONNECTORS, mobileTasks: MOBILE_TASKS, syncLog: SYNC_LOG,
+  config: CONFIG_DEFAULT,
   audit: AUDIT, notifs: NOTIFS, toasts: [],
 };
 
@@ -99,7 +101,12 @@ type Act =
   | { t: "MOBILE_QUEUE"; taskId: string }
   | { t: "MOBILE_SYNC"; taskId: string; conflictResolved?: "SERVER" | "FIELD" }
   | { t: "CONNECTOR_TOGGLE"; id: string }
-  | { t: "CONNECTOR_RETRY"; id: string };
+  | { t: "CONNECTOR_RETRY"; id: string }
+  | { t: "CFG_PATCH"; patch: Partial<SystemConfig> }
+  | { t: "CFG_MATRIX"; matrix: ApprovalMatrix }
+  | { t: "NOTIF_READ"; id: string }
+  | { t: "NOTIF_ALL_READ" }
+  | { t: "NOTIF_TEST"; kind: NotifKind; channel: NotifChannel };
 
 const now = () => new Date().toISOString();
 const mkAudit = (actor: string, role: string, action: string, entity: string, entityId: string, reason?: string, delta?: string): AuditEntry => ({ id: "AUD-" + uid(), date: now(), actor, role, action, entity, entityId, reason, delta });
@@ -121,7 +128,7 @@ function reducer(s: AppState, a: Act): AppState {
     case "COMPLAINT": {
       const eq = s.equipment.find((e) => e.id === a.eqId)!;
       const code = "CMP-" + (2612 + s.complaints.length);
-      const cmp: Complaint = { id: "CMP-" + uid(), code, eqId: a.eqId, date: now(), reporter: a.reporter, priority: a.priority, description: a.description, status: "OPEN", slaHours: SLA_BY_PRIORITY[a.priority] };
+      const cmp: Complaint = { id: "CMP-" + uid(), code, eqId: a.eqId, date: now(), reporter: a.reporter, priority: a.priority, description: a.description, status: "OPEN", slaHours: s.config.slaByPriority[a.priority] ?? SLA_BY_PRIORITY[a.priority] };
       return {
         ...s, complaints: [cmp, ...s.complaints],
         timeline: [mkTimeline(a.eqId, "COMPLAINT", `Keluhan ${code} — ${a.priority}`, a.description, a.reporter, undefined, "OPEN"), ...s.timeline],
@@ -367,9 +374,10 @@ function reducer(s: AppState, a: Act): AppState {
     case "ADJUST": {
       const item = s.items.find((i) => i.sku === a.sku)!;
       const value = Math.abs(a.delta) * item.unitCost;
-      if (value > ADJ_APPROVAL_THRESHOLD) {
+      const adjMatrix = s.config.approvalMatrix.ADJUSTMENT.map((x) => x.label);
+      if (value > s.config.adjThreshold) {
         const ref = "ADJ-2608-" + String(8 + s.approvals.filter((x) => x.type === "ADJUSTMENT").length).padStart(3, "0");
-        const apr = { id: "APR-" + uid(), type: "ADJUSTMENT" as const, ref, requester: me.name, value, risk: "MEDIUM" as const, summary: `Adjust ${item.name} ${a.delta > 0 ? "+" : ""}${a.delta} ${item.uom} (${fmtIDR(value)})`, matrix: ["Kepala Gudang", "Pengelola Inventory", "Manajemen"], status: "PENDING" as const, date: now(), meta: { sku: a.sku, delta: a.delta, reason: a.reason } };
+        const apr = { id: "APR-" + uid(), type: "ADJUSTMENT" as const, ref, requester: me.name, value, risk: "MEDIUM" as const, summary: `Adjust ${item.name} ${a.delta > 0 ? "+" : ""}${a.delta} ${item.uom} (${fmtIDR(value)})`, matrix: adjMatrix, status: "PENDING" as const, date: now(), meta: { sku: a.sku, delta: a.delta, reason: a.reason } };
         return {
           ...s, approvals: [apr, ...s.approvals],
           audit: [mkAudit(me.name, s.role, "ADJUSTMENT.REQUEST", "approval", ref, a.reason, `nilai ${fmtIDR(value)} > threshold`), ...s.audit],
@@ -443,9 +451,9 @@ function reducer(s: AppState, a: Act): AppState {
         const delta = df.counted! - df.system;
         const item = s.items.find((i) => i.sku === df.sku)!;
         const val = Math.abs(delta) * item.unitCost;
-        if (val > ADJ_APPROVAL_THRESHOLD) {
+        if (val > s.config.adjThreshold) {
           const ref = "ADJ-2608-" + String(8 + approvals.filter((x) => x.type === "ADJUSTMENT").length).padStart(3, "0");
-          approvals.unshift({ id: "APR-" + uid(), type: "ADJUSTMENT", ref, requester: me.name, value: val, risk: "MEDIUM", summary: `Stock opname: ${item.name} ${delta > 0 ? "+" : ""}${delta} ${item.uom} (${fmtIDR(val)} > threshold)`, matrix: ["Kepala Gudang", "Pengelola Inventory", "Manajemen"], status: "PENDING", date: now(), meta: { sku: df.sku, delta, reason: `Selisih stock opname ${so.code}` } });
+          approvals.unshift({ id: "APR-" + uid(), type: "ADJUSTMENT", ref, requester: me.name, value: val, risk: "MEDIUM", summary: `Stock opname: ${item.name} ${delta > 0 ? "+" : ""}${delta} ${item.uom} (${fmtIDR(val)} > threshold)`, matrix: s.config.approvalMatrix.ADJUSTMENT.map((x) => x.label), status: "PENDING", date: now(), meta: { sku: df.sku, delta, reason: `Selisih stock opname ${so.code}` } });
           notifs.unshift(mkNotif("APPROVAL_PENDING", `Selisih opname ${item.name} dirutekan ke approval (${fmtIDR(val)}).`, df.sku));
           audits.unshift(mkAudit(me.name, s.role, "ADJUSTMENT.REQUEST", "approval", ref, `Selisih ${so.code}`, `${df.sku} ${delta}`));
         } else {
@@ -458,7 +466,7 @@ function reducer(s: AppState, a: Act): AppState {
       return {
         ...next, approvals, ledger: [...entries, ...next.ledger], audit: [...audits, ...next.audit], notifs,
         timeline: next.timeline,
-        toasts: [...next.toasts, okToast(`${so.code} ditutup — ${diffs.length} selisih diproses (${diffs.filter((x) => { const it = s.items.find((i) => i.sku === x.sku); return it && Math.abs(x.counted! - x.system) * it.unitCost > ADJ_APPROVAL_THRESHOLD; }).length} via approval)`)],
+        toasts: [...next.toasts, okToast(`${so.code} ditutup — ${diffs.length} selisih diproses (${diffs.filter((x) => { const it = s.items.find((i) => i.sku === x.sku); return it && Math.abs(x.counted! - x.system) * it.unitCost > s.config.adjThreshold; }).length} via approval)`)],
       };
     }
 
@@ -848,6 +856,50 @@ function reducer(s: AppState, a: Act): AppState {
       };
     }
 
+    /* ── Phase 6: configuration & notification governance ── */
+
+    case "CFG_PATCH": {
+      const summary = Object.keys(a.patch).join(", ");
+      return {
+        ...s,
+        config: { ...s.config, ...a.patch },
+        audit: [mkAudit(me.name, s.role, "CONFIG.UPDATE", "configuration", "system", undefined, summary), ...s.audit],
+        toasts: [...s.toasts, okToast(`Konfigurasi disimpan (${summary})`)],
+      };
+    }
+
+    case "CFG_MATRIX":
+      return {
+        ...s,
+        config: { ...s.config, approvalMatrix: a.matrix },
+        audit: [mkAudit(me.name, s.role, "CONFIG.MATRIX", "approval_matrix", "matrix", "Ubah rantai persetujuan", Object.entries(a.matrix).map(([k, v]) => `${k}: ${v.length} tahap`).join(" · ")), ...s.audit],
+        toasts: [...s.toasts, okToast("Approval matrix diperbarui — berlaku untuk transaksi baru")],
+      };
+
+    case "NOTIF_READ":
+      return { ...s, notifs: s.notifs.map((n) => (n.id === a.id ? { ...n, read: true } : n)) };
+
+    case "NOTIF_ALL_READ":
+      return { ...s, notifs: s.notifs.map((n) => ({ ...n, read: true })) };
+
+    case "NOTIF_TEST": {
+      const kindMsg: Record<string, string> = {
+        LOW_STOCK: "Uji event: stok menyentuh reorder point.",
+        CALIBRATION_DUE: "Uji event: kalibrasi akan jatuh tempo.",
+        MAINTENANCE_OVERDUE: "Uji event: PM melewati jadwal.",
+        COMPLAINT_SLA_BREACH: "Uji event: keluhan melewati SLA.",
+        CONTRACT_EXPIRING: "Uji event: kontrak akan berakhir.",
+        ASSET_IDLE: "Uji event: utilisasi aset rendah.",
+        STOCK_VARIANCE: "Uji event: selisih stock opname.",
+      };
+      return {
+        ...s,
+        notifs: [mkNotif(a.kind, kindMsg[a.kind] ?? `Uji event: ${a.kind}.`, "TEST"), ...s.notifs],
+        audit: [mkAudit(me.name, s.role, "NOTIFY.TEST", "notification", a.kind, `Kanal ${a.channel}`, undefined), ...s.audit],
+        toasts: [...s.toasts, okToast(`Event ${a.kind} dikirim via ${a.channel}`, "info")],
+      };
+    }
+
     default: return s;
   }
 }
@@ -895,6 +947,10 @@ interface Api {
   mobileDownload: (taskId: string) => void; mobileQueue: (taskId: string) => void;
   mobileSync: (taskId: string, conflictResolved?: "SERVER" | "FIELD") => void;
   toggleConnector: (id: string) => void; retryConnector: (id: string) => void;
+  cfgPatch: (patch: Partial<SystemConfig>) => void;
+  cfgMatrix: (matrix: ApprovalMatrix) => void;
+  markNotif: (id: string) => void; markAllNotif: () => void;
+  testNotify: (kind: NotifKind, channel: NotifChannel) => void;
 }
 
 const Ctx = createContext<Api | null>(null);
@@ -958,6 +1014,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     mobileSync: (taskId, conflictResolved) => dispatch({ t: "MOBILE_SYNC", taskId, conflictResolved }),
     toggleConnector: (id) => dispatch({ t: "CONNECTOR_TOGGLE", id }),
     retryConnector: (id) => dispatch({ t: "CONNECTOR_RETRY", id }),
+    cfgPatch: (patch) => dispatch({ t: "CFG_PATCH", patch }),
+    cfgMatrix: (matrix) => dispatch({ t: "CFG_MATRIX", matrix }),
+    markNotif: (id) => dispatch({ t: "NOTIF_READ", id }),
+    markAllNotif: () => dispatch({ t: "NOTIF_ALL_READ" }),
+    testNotify: (kind, channel) => dispatch({ t: "NOTIF_TEST", kind, channel }),
   }), [s]);
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>;
 }

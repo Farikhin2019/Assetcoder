@@ -5,7 +5,8 @@ export type View =
   | "technical" | "complaints" | "procurement" | "reporting"
   | "master" | "locations" | "approvals" | "audit" | "rbac"
   | "utilization" | "rental" | "depreciation" | "intelligence"
-  | "mobile" | "disposal" | "integrations";
+  | "mobile" | "disposal" | "integrations"
+  | "notifications" | "assetledger" | "config";
 
 export type Role =
   | "Direksi" | "Pengelola Aset" | "Pengelola Inventory" | "Kepala Gudang" | "Petugas Gudang"
@@ -109,6 +110,25 @@ export interface MobileTask { id: string; code: string; eqId: string; kind: "INS
 export interface SyncEntry { id: string; ts: string; taskCode: string; event: string; correlationId: string; status: "OK" | "CONFLICT" | "RETRY"; note: string; }
 export interface RoomInfo { id: string; building: string; floor: string; name: string; unit: string; }
 export interface Warehouse { id: string; name: string; code: string; keeper: string; zones: string[]; capacityLoc: number; usedLoc: number; desc: string; }
+
+/* ── Phase 6: configuration & governance (configuration over hardcoding) ── */
+
+export type NotifChannel = "in-app" | "email" | "whatsapp" | "push";
+export interface ApprovalStage { label: string; roles: Role[]; }
+export type ApprovalMatrix = Record<ApprovalType, ApprovalStage[]>;
+export interface SystemConfig {
+  orgName: string;
+  hospital: string;
+  adjThreshold: number;
+  negativeStockAllowed: boolean;
+  slaByPriority: Record<Priority, number>;
+  calCadence: number[];
+  itemCategories: string[];
+  uoms: string[];
+  channels: Record<NotifChannel, boolean>;
+  approvalMatrix: ApprovalMatrix;
+}
+export interface AssetClassRow { id: string; code: string; name: string; klass: "GEDUNG" | "RUANGAN" | "ALKES" | "KENDARAAN"; location: string; custodian: string; condition: string; status: string; cost: number; book: number; }
 
 /* ── Phase 3: utilization, rental/loan, BGS/SGB, contracts, depreciation ── */
 
