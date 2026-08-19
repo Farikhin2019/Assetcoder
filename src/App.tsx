@@ -35,6 +35,8 @@ import AssetLedger from "./views/AssetLedger";
 import Config from "./views/Config";
 import Command from "./views/Command";
 import ComplianceView from "./views/Compliance";
+import Reliability from "./views/Reliability";
+import EventBus from "./views/EventBus";
 import FormBuilder from "./views/FormBuilder";
 
 const TITLES: Record<View, string> = {
@@ -49,6 +51,7 @@ const TITLES: Record<View, string> = {
   notifications: "Pusat Notifikasi", assetledger: "Buku Aset (Fixed Assets)", config: "Konfigurasi Sistem",
   command: "Executive Command Center", compliance: "Security & Compliance",
   formbuilder: "Form Builder",
+  reliability: "Reliability Analytics", eventbus: "Event Bus · Telemetri",
 };
 
 function Clock() {
@@ -189,6 +192,8 @@ function Shell() {
     ]},
     { group: "Intelligence", items: [
       { id: "intelligence", label: "AI Intelligence", icon: <IcBolt size={15} />, badge: pendingAnomalies },
+      { id: "reliability", label: "Reliability", icon: <IcGauge size={15} /> },
+      { id: "eventbus", label: "Event Bus", icon: <IcPulse size={15} /> },
     ]},
     { group: "Lapangan & Integrasi", items: [
       { id: "mobile", label: "Mobile / PWA", icon: <IcPhone size={15} /> },
@@ -358,6 +363,8 @@ function Shell() {
             {s.view === "command" && <Command />}
             {s.view === "compliance" && <ComplianceView />}
             {s.view === "formbuilder" && <FormBuilder />}
+            {s.view === "reliability" && <Reliability />}
+            {s.view === "eventbus" && <EventBus />}
           </div>
           <footer className="mx-auto flex max-w-[1240px] flex-wrap items-center justify-between gap-2 px-4 pb-5 lg:px-6">
             <p className="font-mono text-[10px] text-mute">SIMASET v7.0 · PRD 18 Aug 2026 · Phase 1–7 complete · Command Center · Security & Compliance · multi-branch ready</p>

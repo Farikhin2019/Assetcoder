@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useMemo, useReducer } from "react";
 import {
   ADJ_APPROVAL_THRESHOLD, Accessory, ApprovalMatrix, AuditEntry, BizContract, Complaint, Connector, DEPR_SALVAGE,
-  DepreciationTx, DisposalRecord, Equipment, FormResult, Inspection, InventoryItem, isITSku, LedgerEntry, Loan,
+  DepreciationTx, DisposalRecord, Equipment, EventEnvelope, FormResult, Inspection, InventoryItem, isITSku, LedgerEntry, Loan,
   mkPendingStages, MobileTask, Notif, NotifChannel, NotifKind, OpnameSession, PRLine, Priority, PurchaseOrder,
   Rental, Repair, Role, ROLE_USER, SLA_BY_PRIORITY, StageDecision, SyncEntry, SystemConfig, TimelineEvent, Toast,
   TransferRecord, TxType, View, WorkOrder, FormTemplate, d, daysUntil, fmtIDR, lifeYears, lineActiveStage, lineState,
@@ -27,6 +27,7 @@ export interface AppState {
   deprPosted: Record<string, string[]>; utilSeries: Record<string, number[]>;
   disposals: DisposalRecord[]; connectors: Connector[]; mobileTasks: MobileTask[]; syncLog: SyncEntry[];
   config: SystemConfig;
+  events: EventEnvelope[];
   audit: AuditEntry[]; notifs: Notif[]; toasts: Toast[];
 }
 
@@ -43,6 +44,16 @@ const INIT: AppState = {
   deprPosted: DEPR_POSTED, utilSeries: UTIL_SERIES,
   disposals: DISPOSALS, connectors: CONNECTORS, mobileTasks: MOBILE_TASKS, syncLog: SYNC_LOG,
   config: CONFIG_DEFAULT,
+  events: [
+    { event_id: "evt_S01", event_type: "asset.complaint.created", aggregate_type: "complaint", aggregate_id: "EQ-12", timestamp: d(0, 6), actor: "Perawat HD shift pagi", payload: "prioritas HIGH · alarm conductivity intermiten…", correlation_id: "corr-8F2K1" },
+    { event_id: "evt_S02", event_type: "maintenance.overdue", aggregate_type: "work_order", aggregate_id: "EQ-06", timestamp: d(0, 7), actor: "scheduler", payload: "WO-2608 melewati jadwal PM", correlation_id: "corr-8F2K2" },
+    { event_id: "evt_S03", event_type: "asset.calibration.expired", aggregate_type: "calibration", aggregate_id: "EQ-08", timestamp: d(0, 7), actor: "scheduler", payload: "KAL-AUT-2025-092 kedaluwarsa 25 hari", correlation_id: "corr-8F2K3" },
+    { event_id: "evt_S04", event_type: "inventory.issued", aggregate_type: "inventory", aggregate_id: "BHP-0031", timestamp: d(-1, 9), actor: "Sari Melati", payload: "−210 → ICU (FEFO)", correlation_id: "corr-8F1A9" },
+    { event_id: "evt_S05", event_type: "asset.transfer.requested", aggregate_type: "asset", aggregate_id: "EQ-04", timestamp: d(-1, 15), actor: "Ns. Dewi Lestari", payload: "→ Gedung D · ICCU Bed 02", correlation_id: "corr-8F1B2" },
+    { event_id: "evt_S06", event_type: "inventory.stock_opname.completed", aggregate_type: "inventory", aggregate_id: "SO-2608-002", timestamp: d(-2, 10), actor: "Bambang Prasetyo", payload: "4 SKU diverifikasi · 1 selisih via approval", correlation_id: "corr-8E9C4" },
+    { event_id: "evt_S07", event_type: "asset.maintenance.completed", aggregate_type: "work_order", aggregate_id: "WO-2605", timestamp: d(-25, 14), actor: "Rudi Hartawan", payload: "1 spare part via ledger", correlation_id: "corr-8D4E7" },
+    { event_id: "evt_S08", event_type: "procurement.po.created", aggregate_type: "procurement", aggregate_id: "PR-2608-009", timestamp: d(-7, 11), actor: "UPBJ Pengadaan", payload: "supplier S-03 · SpO2 cable ×10", correlation_id: "corr-8D2F8" },
+  ],
   audit: AUDIT, notifs: NOTIFS, toasts: [],
 };
 
@@ -117,7 +128,7 @@ const mkTimeline = (eqId: string, type: TimelineEvent["type"], title: string, de
 const mkLedger = (sku: string, type: TxType, qty: number, balance: number, actor: string, ref: string, reason?: string): LedgerEntry => ({ id: uid(), date: now(), sku, type, qty, balance, actor, ref, reason });
 const okToast = (msg: string, kind: Toast["kind"] = "ok"): Toast => ({ id: uid(), msg, kind });
 
-function reducer(s: AppState, a: Act): AppState {
+function coreReducer(s: AppState, a: Act): AppState {
   const me = ROLE_USER[s.role];
   switch (a.t) {
     case "NAV": return { ...s, view: a.view, eqId: a.eqId ?? s.eqId, searchQuery: a.view === "equipment" ? s.searchQuery : "" };
@@ -932,6 +943,44 @@ function reducer(s: AppState, a: Act): AppState {
 
     default: return s;
   }
+}
+
+/* ── event bus (§11): setiap aksi transaksi memancarkan envelope imutabel ── */
+
+function emitEvent(a: Act, s: AppState): EventEnvelope | null {
+  const me = ROLE_USER[s.role];
+  let et = ""; let agg: EventEnvelope["aggregate_type"] = "asset"; let id = ""; let pl = "";
+  switch (a.t) {
+    case "COMPLAINT": et = "asset.complaint.created"; agg = "complaint"; id = a.eqId; pl = `prioritas ${a.priority} · ${a.description.slice(0, 52)}…`; break;
+    case "CALIBRATE": et = a.result === "FAIL" ? "asset.calibration.expired" : "asset.calibration.completed"; agg = "calibration"; id = a.eqId; pl = `${a.result} · sertifikat ${a.cert}`; break;
+    case "WO_CREATE": et = "asset.maintenance.started"; agg = "work_order"; id = a.eqId; pl = `${a.type} · ${a.note.slice(0, 44)}…`; break;
+    case "WO_SUBMIT": et = "asset.maintenance.completed"; agg = "work_order"; id = a.woId; pl = `${a.parts.length} spare part via ledger`; break;
+    case "INSPECT": et = "asset.inspected"; agg = "asset"; id = a.eqId; pl = `hasil ${a.result} · ${a.checklist.filter((c) => c.pass).length}/${a.checklist.length} item lolos`; break;
+    case "TRANSFER_REQ": et = "asset.transfer.requested"; agg = "asset"; id = a.eqId; pl = `→ ${a.toBuilding} · ${a.toRoom}`; break;
+    case "ASSIGN": et = "asset.assigned"; agg = "asset"; id = a.eqId; pl = `custodian ${a.custodian} · ${a.unit}`; break;
+    case "REGISTER_EQ": et = "asset.created"; agg = "asset"; id = a.serial; pl = `${a.name} (${a.category})`; break;
+    case "REPAIR_PROGRESS": et = "asset.repair.started"; agg = "repair"; id = a.id; pl = "diagnosis dikonfirmasi"; break;
+    case "REPAIR_CLOSE": et = "asset.repair.completed"; agg = "repair"; id = a.id; pl = a.result.slice(0, 52); break;
+    case "RETIRE_REQUEST": et = "asset.retired"; agg = "asset"; id = a.eqId; pl = `rencana pelepasan ${a.method}`; break;
+    case "DISPOSE_CONFIRM": et = "asset.disposed"; agg = "asset"; id = a.eqId; pl = `${a.method} · hasil ${a.proceeds.toLocaleString("id-ID")}`; break;
+    case "ADJUST": et = "inventory.adjusted"; agg = "inventory"; id = a.sku; pl = `Δ ${a.delta > 0 ? "+" : ""}${a.delta} · ${a.reason.slice(0, 36)}`; break;
+    case "RECEIVE": et = "inventory.received"; agg = "inventory"; id = a.sku; pl = `+${a.qty} · GRN ${a.poRef}`; break;
+    case "DISTRIBUTE": et = "inventory.issued"; agg = "inventory"; id = a.sku; pl = `−${a.qty} → ${a.dest} (${a.strategy})`; break;
+    case "OPNAME_FINALIZE": et = "inventory.stock_opname.completed"; agg = "inventory"; id = a.id; pl = "sesi diverifikasi & diposting"; break;
+    case "APPROVE": et = a.ok ? "approval.granted" : "approval.rejected"; agg = "approval"; id = a.id; pl = a.note || (a.ok ? "disetujui tanpa catatan" : "ditolak"); break;
+    case "PO_CREATE": et = "procurement.po.created"; agg = "procurement"; id = a.prId; pl = `supplier ${a.supplierId} · ETA ${a.eta}`; break;
+    case "PR_DECIDE": et = a.ok ? "procurement.line.approved" : "procurement.line.rejected"; agg = "procurement"; id = a.sku; pl = a.note.slice(0, 52) || (a.ok ? "lolos tahap" : "ditolak tahap"); break;
+    case "FORM_SAVE": et = "config.form.saved"; agg = "asset"; id = a.template.id; pl = `${a.template.name} · ${a.template.fields.length} field`; break;
+    default: return null;
+  }
+  return { event_id: "evt_" + uid(), event_type: et, aggregate_type: agg, aggregate_id: id, timestamp: now(), actor: me.name, payload: pl, correlation_id: "corr-" + uid() };
+}
+
+function reducer(s: AppState, a: Act): AppState {
+  const next = coreReducer(s, a);
+  const env = emitEvent(a, s);
+  if (!env) return next;
+  return { ...next, events: [env, ...next.events].slice(0, 140) };
 }
 
 /* ── context ── */

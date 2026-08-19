@@ -7,7 +7,8 @@ export type View =
   | "utilization" | "rental" | "depreciation" | "intelligence"
   | "mobile" | "disposal" | "integrations"
   | "notifications" | "assetledger" | "config"
-  | "command" | "compliance" | "formbuilder";
+  | "command" | "compliance" | "formbuilder"
+  | "reliability" | "eventbus";
 
 export type Role =
   | "Direksi" | "Pengelola Aset" | "Pengelola Inventory" | "Kepala Gudang" | "Petugas Gudang"
@@ -155,6 +156,12 @@ export const periodKey = (dt: Date) => `${dt.getFullYear()}-${String(dt.getMonth
 export const idleStatusOf = (pct: number): IdleStatus => (pct >= 65 ? "ACTIVE" : pct >= 40 ? "LOW_USAGE" : pct >= 15 ? "IDLE" : "UNUSED");
 
 export interface AuditEntry { id: string; date: string; actor: string; role: string; action: string; entity: string; entityId: string; reason?: string; delta?: string; }
+
+/* ── Event bus (§11): every transaction emits an immutable envelope ── */
+export interface EventEnvelope {
+  event_id: string; event_type: string; aggregate_type: "asset" | "inventory" | "work_order" | "calibration" | "complaint" | "repair" | "approval" | "procurement";
+  aggregate_id: string; timestamp: string; actor: string; payload: string; correlation_id: string;
+}
 export interface Notif { id: string; kind: NotifKind; msg: string; refId: string; date: string; read: boolean; }
 export interface Toast { id: string; msg: string; kind: "ok" | "warn" | "err" | "info"; }
 export type PermLevel = "full" | "view" | "none";
