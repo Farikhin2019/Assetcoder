@@ -31,7 +31,7 @@ export interface AppState {
 }
 
 const INIT: AppState = {
-  view: "dashboard", eqId: null, role: "Pengelola Aset", searchQuery: "",
+  view: "command", eqId: null, role: "Pengelola Aset", searchQuery: "",
   equipment: EQUIPMENT, timeline: TIMELINE, items: ITEMS, ledger: LEDGER_INIT,
   spareParts: SPARE_PARTS, workOrders: WORK_ORDERS, calibrations: CALIBRATIONS,
   inspections: INSPECTIONS, formTemplates: FORM_TEMPLATES, formResults: [],

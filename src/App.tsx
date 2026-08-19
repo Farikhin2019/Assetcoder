@@ -158,6 +158,9 @@ function Shell() {
   }, []);
 
   const NAV: { group: string; items: { id: View; label: string; icon: React.ReactNode; badge?: number }[] }[] = [
+    { group: "Executive", items: [
+      { id: "command", label: "Command Center", icon: <IcGauge size={15} />, badge: pendingAnomalies > 0 ? pendingAnomalies : undefined },
+    ]},
     { group: "Pantau", items: [
       { id: "dashboard", label: "Dashboard", icon: <IcPulse size={15} /> },
       { id: "reporting", label: "Reporting", icon: <IcChart size={15} /> },
@@ -196,6 +199,7 @@ function Shell() {
       { id: "approvals", label: "Approvals", icon: <IcStamp size={15} />, badge: pending },
       { id: "audit", label: "Audit Trail", icon: <IcScroll size={15} /> },
       { id: "rbac", label: "Peran & Akses", icon: <IcShield size={15} /> },
+      { id: "compliance", label: "Security & Compliance", icon: <IcCheck size={15} /> },
     ]},
     { group: "Konsolidasi", items: [
       { id: "assetledger", label: "Buku Aset", icon: <IcHospital size={15} /> },
@@ -248,7 +252,7 @@ function Shell() {
           <div className="mx-1 mt-2 rounded-md border border-pine-800 bg-pine-950/50 p-2.5">
             <p className="font-mono text-[8.5px] font-bold uppercase tracking-[0.16em] text-pine-500">Phase roadmap</p>
             <div className="mt-1.5 space-y-1">
-              {[["P1 Core Inventory & Asset", true], ["P2 Technical Operations", true], ["P3 Utilization & Finance", true], ["P4 Enterprise Intelligence", true], ["P5 Field Ops & Integration", true], ["P6 Consolidation & Governance", true]].map(([label, on]) => (
+              {[["P1 Core Inventory & Asset", true], ["P2 Technical Operations", true], ["P3 Utilization & Finance", true], ["P4 Enterprise Intelligence", true], ["P5 Field Ops & Integration", true], ["P6 Consolidation & Governance", true], ["P7 Command & Compliance", true]].map(([label, on]) => (
                 <p key={label as string} className="flex items-center gap-1.5 font-mono text-[9.5px] text-pine-100/70">
                   {on ? <IcCheck size={10} className="text-pine-500" /> : <IcClose size={10} className="text-pine-700" />} {label}
                 </p>
@@ -348,9 +352,11 @@ function Shell() {
             {s.view === "notifications" && <NotificationCenter />}
             {s.view === "assetledger" && <AssetLedger />}
             {s.view === "config" && <Config />}
+            {s.view === "command" && <Command />}
+            {s.view === "compliance" && <ComplianceView />}
           </div>
           <footer className="mx-auto flex max-w-[1240px] flex-wrap items-center justify-between gap-2 px-4 pb-5 lg:px-6">
-            <p className="font-mono text-[10px] text-mute">SIMASET v6.0 · PRD 18 Aug 2026 · Phase 1–6 complete · Buku Aset · Notifikasi · Konfigurasi · full traceability</p>
+            <p className="font-mono text-[10px] text-mute">SIMASET v7.0 · PRD 18 Aug 2026 · Phase 1–7 complete · Command Center · Security & Compliance · multi-branch ready</p>
             <p className="flex items-center gap-1.5 font-mono text-[10px] text-mute"><IcPhone size={11} className="text-pine-600" /> Mobile/PWA: offline queue + QR scan <span className="mx-1 text-line2">·</span> <IcWarn size={11} className="text-warnhi" /> API p95 &lt; 500ms · availability 99,9%</p>
           </footer>
         </main>
