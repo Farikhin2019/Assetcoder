@@ -1,9 +1,11 @@
 import React, { createContext, useContext, useMemo, useReducer } from "react";
 import {
   ADJ_APPROVAL_THRESHOLD, Accessory, AuditEntry, BizContract, Complaint, Connector, DEPR_SALVAGE, DepreciationTx,
-  DisposalRecord, Equipment, FormResult, Inspection, InventoryItem, LedgerEntry, Loan, MobileTask, Notif, NotifKind,
-  OpnameSession, Priority, PurchaseOrder, Rental, Repair, Role, ROLE_USER, SLA_BY_PRIORITY, SyncEntry, TimelineEvent,
-  Toast, TransferRecord, TxType, View, WorkOrder, d, daysUntil, fmtIDR, lifeYears, monthlyDep, periodKey, uid,
+  DisposalRecord, Equipment, FormResult, Inspection, InventoryItem, isITSku, LedgerEntry, Loan, mkPendingStages,
+  MobileTask, Notif, NotifKind, OpnameSession, PRLine, Priority, PurchaseOrder, Rental, Repair, Role, ROLE_USER,
+  SLA_BY_PRIORITY, StageDecision, SyncEntry, TimelineEvent, Toast, TransferRecord, TxType, View, WorkOrder,
+  d, daysUntil, fmtIDR, lifeYears, lineActiveStage, lineState, lineTotal, monthlyDep, periodKey, prStageLabels,
+  prStageRole, prState, uid,
 } from "./types";
 import {
   ACCESSORIES, APPROVALS, AUDIT, BUILDINGS, CALIBRATIONS, COMPLAINTS, CONNECTORS, CONTRACTS, DEMAND_PLANS,
@@ -74,6 +76,9 @@ type Act =
   | { t: "DEMAND_CONSOLIDATE"; id: string }
   | { t: "PO_CREATE"; prId: string; supplierId: string; eta: string }
   | { t: "PO_RECEIVE"; poId: string }
+  | { t: "PR_DECIDE"; prId: string; sku: string; ok: boolean; note: string }
+  | { t: "PR_DECIDE_ALL"; prId: string; ok: boolean; note: string }
+  | { t: "PR_REVISE"; prId: string; sku: string; qty: number }
   | { t: "ADD_TECH"; name: string; specialty: string; cert: string; phone: string; vendor: boolean }
   | { t: "ADD_SUPPLIER"; name: string; service: string; contractUntil: string; contact: string }
   | { t: "ADD_ACCESSORY"; name: string; eqId: string; qty: number; condition: Equipment["condition"]; note: string }
@@ -333,14 +338,6 @@ function reducer(s: AppState, a: Act): AppState {
           timeline: [mkTimeline(eqId, "REPAIR", `Repair disetujui (${ap.ref})`, "Perbaikan dapat dieksekusi sesuai diagnosis.", me.name), ...next.timeline],
         };
       }
-      if (ap.type === "PURCHASE") {
-        const prId = String(meta.prId);
-        next = {
-          ...next,
-          purchaseRequests: next.purchaseRequests.map((p) => (p.id === prId ? { ...p, status: "APPROVED" } : p)),
-          toasts: [...next.toasts, okToast(`${ap.ref} disetujui — lanjutkan buat PO di Procurement`, "info")],
-        };
-      }
       if (ap.type === "LOAN") {
         const loanId = String(meta.loanId);
         const ln = s.loans.find((x) => x.id === loanId);
@@ -489,27 +486,29 @@ function reducer(s: AppState, a: Act): AppState {
       const item = s.items.find((i) => i.name === dp.item);
       const sku = item?.sku ?? "NEW-" + uid().slice(0, 4);
       const code = "PR-2608-" + String(12 + s.purchaseRequests.length).padStart(3, "0");
-      const pr = { id: "PR-" + uid(), code, date: now(), items: [{ sku, name: dp.item, qty: dp.qty, estCost: dp.estCost / dp.qty }], total: dp.estCost, requester: me.name, status: "SUBMITTED" as const };
-      const apr = { id: "APR-" + uid(), type: "PURCHASE" as const, ref: code, requester: me.name, value: dp.estCost, risk: dp.estCost > 20_000_000 ? "MEDIUM" as const : "LOW" as const, summary: `Purchase request: ${dp.item} ${dp.qty} ${dp.uom} (${fmtIDR(dp.estCost)})`, matrix: ["Kepala Gudang", "UPBJ", "Manajemen"], status: "PENDING" as const, date: now(), meta: { prId: pr.id, sku } };
+      const line: PRLine = { sku, name: dp.item, qty: dp.qty, unitCost: Math.round(dp.estCost / dp.qty), isIT: isITSku(sku), stages: mkPendingStages(), revision: 0 };
+      const pr = { id: "PR-" + uid(), code, date: now(), requester: me.name, unit: dp.unit, needBy: dp.needBy, lines: [line], status: "IN_APPROVAL" as const };
       return {
         ...s,
         demandPlans: s.demandPlans.map((x) => (x.id === a.id ? { ...x, status: "CONSOLIDATED" } : x)),
-        purchaseRequests: [pr, ...s.purchaseRequests], approvals: [apr, ...s.approvals],
+        purchaseRequests: [pr, ...s.purchaseRequests],
         audit: [mkAudit(me.name, s.role, "PROCUREMENT.PR", "purchase_request", code, `Dari demand plan ${dp.code}`, fmtIDR(dp.estCost)), ...s.audit],
-        notifs: [mkNotif("APPROVAL_PENDING", `PR ${code} menunggu persetujuan pengadaan.`, sku), ...s.notifs],
-        toasts: [...s.toasts, okToast(`PR ${code} dibuat dari ${dp.code} — menunggu approval`)],
+        notifs: [mkNotif("APPROVAL_PENDING", `PR ${code} menunggu persetujuan 3 tahap (${line.isIT ? "IT" : "UMUM"} → Keuangan → COO).`, sku), ...s.notifs],
+        toasts: [...s.toasts, okToast(`PR ${code} dibuat dari ${dp.code} — masuk persetujuan 3 tahap`)],
       };
     }
 
     case "PO_CREATE": {
       const pr = s.purchaseRequests.find((p) => p.id === a.prId)!;
+      const approved = pr.lines.filter((l) => lineState(l) === "APPROVED");
       const code = "PO-2608-" + String(91 + s.purchaseOrders.length).padStart(3, "0");
-      const po: PurchaseOrder = { id: "PO-" + uid(), code, date: now(), supplierId: a.supplierId, items: pr.items.map((i) => ({ sku: i.sku, name: i.name, qty: i.qty, price: i.estCost })), total: pr.total, eta: a.eta, status: "SENT", prRef: pr.code };
+      const total = approved.reduce((x, l) => x + lineTotal(l), 0);
+      const po: PurchaseOrder = { id: "PO-" + uid(), code, date: now(), supplierId: a.supplierId, items: approved.map((l) => ({ sku: l.sku, name: l.name, qty: l.qty, price: l.unitCost })), total, eta: a.eta, status: "SENT", prRef: pr.code };
       return {
         ...s, purchaseOrders: [po, ...s.purchaseOrders],
         purchaseRequests: s.purchaseRequests.map((p) => (p.id === a.prId ? { ...p, status: "PO_CREATED" } : p)),
-        audit: [mkAudit(me.name, s.role, "PROCUREMENT.PO", "purchase_order", code, undefined, `${pr.code} → ${code} · ${fmtIDR(pr.total)}`), ...s.audit],
-        toasts: [...s.toasts, okToast(`PO ${code} dikirim ke supplier`)],
+        audit: [mkAudit(me.name, s.role, "PROCUREMENT.PO", "purchase_order", code, `${approved.length} baris disetujui`, `${pr.code} → ${code} · ${fmtIDR(total)}`), ...s.audit],
+        toasts: [...s.toasts, okToast(`PO ${code} dikirim ke supplier (${approved.length} baris)`)],
       };
     }
 
@@ -531,6 +530,62 @@ function reducer(s: AppState, a: Act): AppState {
         ...next, receipts, ledger: [...entries, ...next.ledger],
         audit: [mkAudit(me.name, s.role, "PROCUREMENT.GRN", "goods_receipt", po.code, undefined, `${po.items.length} line item diterima`), ...next.audit],
         toasts: [...next.toasts, okToast(`${po.code} diterima — GRN & ledger diposting`)],
+      };
+    }
+
+    /* ── PR approval 3 tahap (IT/UMUM → Keuangan → COO), per-barang ── */
+    case "PR_DECIDE": {
+      const pr = s.purchaseRequests.find((p) => p.id === a.prId);
+      if (!pr) return s;
+      const line = pr.lines.find((l) => l.sku === a.sku);
+      if (!line) return s;
+      const idx = lineActiveStage(line);
+      if (idx < 0) return s;
+      const stages = line.stages.map((st, i) => (i === idx ? { status: (a.ok ? "APPROVED" : "REJECTED") as StageDecision["status"], approver: me.name, note: a.note, date: now() } : st));
+      const upd: PRLine = { ...line, stages };
+      const lines = pr.lines.map((l) => (l.sku === a.sku ? upd : l));
+      const newPr = { ...pr, lines, status: prState({ ...pr, lines }) };
+      const stageLabel = prStageLabels(line.isIT)[idx];
+      return {
+        ...s, purchaseRequests: s.purchaseRequests.map((p) => (p.id === a.prId ? newPr : p)),
+        audit: [mkAudit(me.name, s.role, a.ok ? "PROCUREMENT.APPROVE" : "PROCUREMENT.REJECT", "purchase_request", `${pr.code}/${line.sku}`, a.note || undefined, `Tahap ${idx + 1} ${stageLabel}: ${a.ok ? "APPROVED" : "REJECTED"}`), ...s.audit],
+        toasts: [...s.toasts, okToast(`${a.ok ? "Disetujui" : "Ditolak"}: ${line.name} — tahap ${stageLabel}`, a.ok ? "ok" : "warn")],
+      };
+    }
+
+    case "PR_DECIDE_ALL": {
+      const pr = s.purchaseRequests.find((p) => p.id === a.prId);
+      if (!pr) return s;
+      let changed = 0;
+      const lines = pr.lines.map((l) => {
+        const idx = lineActiveStage(l);
+        if (idx < 0 || prStageRole(l.isIT, idx) !== s.role) return l;
+        changed++;
+        const stages = l.stages.map((st, i) => (i === idx ? { status: (a.ok ? "APPROVED" : "REJECTED") as StageDecision["status"], approver: me.name, note: a.note, date: now() } : st));
+        return { ...l, stages };
+      });
+      if (changed === 0) return { ...s, toasts: [...s.toasts, okToast("Tidak ada baris yang menunggu di tahap Anda", "info")] };
+      const newPr = { ...pr, lines, status: prState({ ...pr, lines }) };
+      return {
+        ...s, purchaseRequests: s.purchaseRequests.map((p) => (p.id === a.prId ? newPr : p)),
+        audit: [mkAudit(me.name, s.role, a.ok ? "PROCUREMENT.APPROVE_ALL" : "PROCUREMENT.REJECT_ALL", "purchase_request", pr.code, a.note || undefined, `${changed} baris pada tahap Anda`), ...s.audit],
+        toasts: [...s.toasts, okToast(`${changed} baris ${a.ok ? "disetujui" : "ditolak"} sekaligus`, a.ok ? "ok" : "warn")],
+      };
+    }
+
+    case "PR_REVISE": {
+      const pr = s.purchaseRequests.find((p) => p.id === a.prId);
+      if (!pr) return s;
+      const line = pr.lines.find((l) => l.sku === a.sku);
+      if (!line) return s;
+      const upd: PRLine = { ...line, qty: a.qty, revision: line.revision + 1, stages: mkPendingStages() };
+      const lines = pr.lines.map((l) => (l.sku === a.sku ? upd : l));
+      const newPr = { ...pr, lines, status: prState({ ...pr, lines }) };
+      return {
+        ...s, purchaseRequests: s.purchaseRequests.map((p) => (p.id === a.prId ? newPr : p)),
+        audit: [mkAudit(me.name, s.role, "PROCUREMENT.REVISE", "purchase_request", `${pr.code}/${line.sku}`, "Revisi sesuai saran approver", `qty → ${a.qty} (revisi ke-${upd.revision})`), ...s.audit],
+        notifs: [mkNotif("APPROVAL_PENDING", `PR ${pr.code} direvisi (${line.name} qty ${a.qty}) — approval diulang dari tahap 1.`, line.sku), ...s.notifs],
+        toasts: [...s.toasts, okToast(`${line.name} direvisi (qty ${a.qty}) — kembali ke tahap 1`)],
       };
     }
 
@@ -675,15 +730,15 @@ function reducer(s: AppState, a: Act): AppState {
 
     case "AUTO_PR": {
       const code = "PR-2608-" + String(12 + s.purchaseRequests.length).padStart(3, "0");
-      const total = a.lines.reduce((x, l) => x + l.qty * l.estCost, 0);
-      const pr = { id: "PR-" + uid(), code, date: now(), items: a.lines.map((l) => ({ sku: l.sku, name: l.name, qty: l.qty, estCost: l.estCost })), total, requester: "AI Procurement Engine", status: "SUBMITTED" as const };
-      const apr = { id: "APR-" + uid(), type: "PURCHASE" as const, ref: code, requester: "AI Procurement Engine", value: total, risk: (total > 20_000_000 ? "MEDIUM" : "LOW") as "MEDIUM" | "LOW", summary: `PR otomatis (AI): ${a.lines.length} SKU — ${a.lines.map((l) => l.name).join(", ").slice(0, 60)}…`, matrix: ["Kepala Gudang", "UPBJ", "Manajemen"], status: "PENDING" as const, date: now(), meta: { prId: pr.id, sku: a.lines[0]?.sku ?? "" } };
+      const lines: PRLine[] = a.lines.map((l) => ({ sku: l.sku, name: l.name, qty: l.qty, unitCost: l.estCost, isIT: isITSku(l.sku), stages: mkPendingStages(), revision: 0 }));
+      const total = lines.reduce((x, l) => x + lineTotal(l), 0);
+      const pr = { id: "PR-" + uid(), code, date: now(), requester: "AI Procurement Engine", unit: "Multi-Unit (AI)", needBy: d(30), lines, status: "IN_APPROVAL" as const };
       return {
         ...s,
-        purchaseRequests: [pr, ...s.purchaseRequests], approvals: [apr, ...s.approvals],
+        purchaseRequests: [pr, ...s.purchaseRequests],
         audit: [mkAudit(me.name, s.role, "PROCUREMENT.AUTO_PR", "purchase_request", code, "Rekomendasi AI Procurement Engine (forecast + coverage)", fmtIDR(total)), ...s.audit],
-        notifs: [mkNotif("APPROVAL_PENDING", `PR otomatis ${code} (${fmtIDR(total)}) menunggu persetujuan pengadaan.`, a.lines[0]?.sku ?? "AI"), ...s.notifs],
-        toasts: [...s.toasts, okToast(`PR ${code} dibuat otomatis oleh AI — masuk Approval Engine`)],
+        notifs: [mkNotif("APPROVAL_PENDING", `PR otomatis ${code} (${fmtIDR(total)}) menunggu persetujuan 3 tahap.`, a.lines[0]?.sku ?? "AI"), ...s.notifs],
+        toasts: [...s.toasts, okToast(`PR ${code} dibuat otomatis oleh AI — masuk persetujuan 3 tahap`)],
       };
     }
 
@@ -822,6 +877,9 @@ interface Api {
   submitDemand: (item: string, qty: number, uom: string, estCost: number, unit: string, needBy: string) => void;
   reviewDemand: (id: string) => void; consolidateDemand: (id: string) => void;
   createPo: (prId: string, supplierId: string, eta: string) => void; receivePo: (poId: string) => void;
+  prDecide: (prId: string, sku: string, ok: boolean, note: string) => void;
+  prDecideAll: (prId: string, ok: boolean, note: string) => void;
+  prRevise: (prId: string, sku: string, qty: number) => void;
   addTechnician: (p: { name: string; specialty: string; cert: string; phone: string; vendor: boolean }) => void;
   addSupplier: (p: { name: string; service: string; contractUntil: string; contact: string }) => void;
   addAccessory: (p: { name: string; eqId: string; qty: number; condition: Equipment["condition"]; note: string }) => void;
@@ -876,6 +934,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     consolidateDemand: (id) => dispatch({ t: "DEMAND_CONSOLIDATE", id }),
     createPo: (prId, supplierId, eta) => dispatch({ t: "PO_CREATE", prId, supplierId, eta }),
     receivePo: (poId) => dispatch({ t: "PO_RECEIVE", poId }),
+    prDecide: (prId, sku, ok, note) => dispatch({ t: "PR_DECIDE", prId, sku, ok, note }),
+    prDecideAll: (prId, ok, note) => dispatch({ t: "PR_DECIDE_ALL", prId, ok, note }),
+    prRevise: (prId, sku, qty) => dispatch({ t: "PR_REVISE", prId, sku, qty }),
     addTechnician: (p) => dispatch({ t: "ADD_TECH", ...p }),
     addSupplier: (p) => dispatch({ t: "ADD_SUPPLIER", ...p }),
     addAccessory: (p) => dispatch({ t: "ADD_ACCESSORY", ...p }),

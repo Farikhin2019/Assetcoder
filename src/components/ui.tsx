@@ -31,6 +31,7 @@ export function chipFor(status: string): Tone {
     PASS: "ok", ADJUSTED: "warn", CONDITIONAL: "warn",
     DRAFT: "neutral", SUBMITTED: "info", REVIEWED: "warn", CONSOLIDATED: "pine", PO_CREATED: "pine",
     SENT: "info", PARTIAL: "warn", RECEIVED: "ok", COUNTING: "warn",
+    IN_APPROVAL: "info",
     DISPOSED: "neutral",
     CONNECTED: "ok", DEGRADED: "warn", OFFLINE: "danger",
     SYNCED: "ok", QUEUED: "warn", DOWNLOADED: "info", ASSIGNED: "neutral",

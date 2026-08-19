@@ -1,9 +1,9 @@
 import {
   Accessory, Approval, AuditEntry, BizContract, Building, CalibrationRecord, Complaint, Connector, DemandPlan,
   DisposalRecord, Equipment, FormTemplate, Inspection, InventoryItem, IssueRec, LedgerEntry, Loan, MobileTask,
-  Notif, OpnameSession, PermLevel, PurchaseOrder, PurchaseRequest, Receipt, Rental, Repair, Role, RoomInfo,
-  SparePart, Supplier, SyncEntry, Technician, TimelineEvent, TransferRecord, TxType, Warehouse, WorkOrder,
-  d, periodKey, uid,
+  Notif, OpnameSession, PermLevel, PRLine, PRStageStatus, PurchaseOrder, PurchaseRequest, Receipt, Rental, Repair,
+  Role, RoomInfo, SparePart, StageDecision, Supplier, SyncEntry, Technician, TimelineEvent, TransferRecord, TxType,
+  Warehouse, WorkOrder, d, isITSku, mkPendingStages, periodKey, uid,
 } from "./types";
 
 /* ── people & partners ── */
@@ -81,6 +81,8 @@ export const ITEMS: InventoryItem[] = [
   { sku: "FAR-1301", name: "Suction Catheter CH14", category: "Alkes Habis Pakai", uom: "pcs", warehouse: "Gudang Farmasi", batch: "SC260411", expiry: d(480), stock: 415, min: 200, max: 1200, reorder: 300, unitCost: 6_200, method: "FEFO" },
   { sku: "UMU-0211", name: "Kertas EKG 80 mm", category: "ATK Medis", uom: "roll", warehouse: "Gudang Umum", batch: null, expiry: null, stock: 42, min: 30, max: 200, reorder: 40, unitCost: 32_000, method: "FIFO" },
   { sku: "FAR-1340", name: "Citrate Tube 3.2% (CTAD)", category: "Reagen Lab", uom: "pack", warehouse: "Gudang Farmasi", batch: "GR260222", expiry: d(21), stock: 12, min: 8, max: 40, reorder: 12, unitCost: 385_000, method: "FEFO" },
+  { sku: "IT-0901", name: "PC Workstation Radiologi (PACS)", category: "IT & Komputer", uom: "unit", warehouse: "Gudang Umum", batch: null, expiry: null, stock: 2, min: 1, max: 8, reorder: 2, unitCost: 18_500_000, method: "FIFO" },
+  { sku: "IT-0902", name: "Printer Gelang Pasien", category: "IT & Komputer", uom: "unit", warehouse: "Gudang Umum", batch: null, expiry: null, stock: 3, min: 2, max: 12, reorder: 3, unitCost: 4_200_000, method: "FIFO" },
 ];
 
 const stockOf = Object.fromEntries(ITEMS.map((i) => [i.sku, i.stock]));
@@ -219,7 +221,6 @@ export const APPROVALS: Approval[] = [
   { id: "APR-1", type: "TRANSFER", ref: "TRF-2608-003", requester: "Ns. Dewi Lestari", value: 0, risk: "MEDIUM", summary: "Patient Monitor MX450 · ICU Bed 07 → ICCU Bed 02", matrix: ["Kepala Unit ICU", "Pengelola Aset", "Kepala Unit ICCU"], status: "PENDING", date: d(-1, 15), meta: { eqId: "EQ-04", toBuilding: "Gedung D", toFloor: "Lantai 2", toRoom: "ICCU · Bed 02" } },
   { id: "APR-2", type: "ADJUSTMENT", ref: "ADJ-2608-007", requester: "Kepala Gudang", value: 7_440_000, risk: "MEDIUM", summary: "Stock opname: Reagen Hematologi DCL −6 pack (selisih −Rp 7,44 jt > threshold)", matrix: ["Kepala Gudang", "Pengelola Inventory", "Manajemen"], status: "PENDING", date: d(-2, 10), meta: { sku: "FAR-1287", delta: -6, reason: "Selisih stock opname SO-2608-002 — investigasi suhu ruang reagen" } },
   { id: "APR-3", type: "REPAIR", ref: "RPR-2603", requester: "Rudi Hartawan (Teknisi)", value: 6_350_000, risk: "MEDIUM", summary: "Repair Hematology Analyzer — sampling valve + jasa (spare part stock 0, perlu pengadaan)", matrix: ["Kepala Teknisi", "Pengelola Aset"], status: "PENDING", date: d(-3, 9), meta: { eqId: "EQ-10" } },
-  { id: "APR-4", type: "PURCHASE", ref: "PR-2608-011", requester: "UPBJ Pengadaan", value: 40_800_000, risk: "LOW", summary: "Purchase request: Handscoon Nitrile M 600 box (reorder point breach)", matrix: ["Kepala Gudang", "UPBJ", "Manajemen"], status: "PENDING", date: d(0, 7), meta: { prId: "PR-2", sku: "BHP-0012" } },
 ];
 
 /* ── Phase 2: procurement chain ── */
@@ -231,9 +232,38 @@ export const DEMAND_PLANS: DemandPlan[] = [
   { id: "DP-5", code: "DP-2608-005", item: "SpO2 Extension Cable", qty: 10, uom: "pcs", estCost: 7_800_000, unit: "ICU", needBy: d(-5), status: "CONSOLIDATED", by: "Ns. Dewi Lestari" },
 ];
 
+const st = (status: PRStageStatus, approver = "", note = "", dd = 0): StageDecision =>
+  ({ status, approver, note, date: dd ? d(dd, 10) : "" });
+const mkLine = (sku: string, name: string, qty: number, unitCost: number, stages: StageDecision[], revision = 0): PRLine =>
+  ({ sku, name, qty, unitCost, isIT: isITSku(sku), stages, revision });
+
 export const PURCHASE_REQUESTS: PurchaseRequest[] = [
-  { id: "PR-2", code: "PR-2608-011", date: d(0, 7), items: [{ sku: "BHP-0012", name: "Handscoon Nitrile M", qty: 600, estCost: 68_000 }], total: 40_800_000, requester: "UPBJ Pengadaan", status: "SUBMITTED" },
-  { id: "PR-1", code: "PR-2608-009", date: d(-9, 10), items: [{ sku: "SP-PHL-MX-EXT", name: "SpO2 Extension Cable", qty: 10, estCost: 780_000 }], total: 7_800_000, requester: "UPBJ Pengadaan", status: "PO_CREATED" },
+  {
+    id: "PR-3", code: "PR-2608-012", date: d(0, 7), requester: "UPBJ Pengadaan", unit: "Multi-Unit", needBy: d(21), status: "IN_APPROVAL",
+    lines: [
+      mkLine("BHP-0012", "Handscoon Nitrile M", 600, 68_000, [st("APPROVED", "Galih Saputra", "Sesuai ROP, lanjut", 0), st("PENDING"), st("PENDING")]),
+      mkLine("IT-0901", "PC Workstation Radiologi (PACS)", 4, 18_500_000, [st("PENDING"), st("PENDING"), st("PENDING")]),
+    ],
+  },
+  {
+    id: "PR-4", code: "PR-2608-013", date: d(-1, 9), requester: "Ns. Dewi Lestari", unit: "ICU", needBy: d(14), status: "REJECTED",
+    lines: [
+      mkLine("IT-0902", "Printer Gelang Pasien", 10, 4_200_000, [st("APPROVED", "Dian Pratiwi", "Spek OK", -1), st("REJECTED", "Ratna Dewi, S.E.", "Qty terlalu banyak — cukup 6 unit untuk 6 bed", -1), st("PENDING")]),
+      mkLine("BHP-0031", "Spuit 3 cc Terumo", 1500, 2_350, [st("APPROVED", "Galih Saputra", "OK", -1), st("APPROVED", "Ratna Dewi, S.E.", "Dalam budget", -1), st("PENDING")]),
+    ],
+  },
+  {
+    id: "PR-2", code: "PR-2608-011", date: d(-2, 8), requester: "UPBJ Pengadaan", unit: "IGD & Rawat Inap", needBy: d(30), status: "APPROVED",
+    lines: [
+      mkLine("FAR-1102", "NaCl 0.9% 500 ml", 400, 14_800, [st("APPROVED", "Galih Saputra", "Kebutuhan rutin", -2), st("APPROVED", "Ratna Dewi, S.E.", "Budget tersedia", -2), st("APPROVED", "dr. H. Ahmad Fauzi, MARS", "Setuju", -1)]),
+    ],
+  },
+  {
+    id: "PR-1", code: "PR-2608-009", date: d(-9, 10), requester: "UPBJ Pengadaan", unit: "ICU", needBy: d(-2), status: "PO_CREATED",
+    lines: [
+      mkLine("SP-PHL-MX-EXT", "SpO2 Extension Cable", 10, 780_000, [st("APPROVED", "Galih Saputra", "", -9), st("APPROVED", "Ratna Dewi, S.E.", "", -8), st("APPROVED", "dr. H. Ahmad Fauzi, MARS", "", -8)], 0),
+    ],
+  },
 ];
 
 export const PURCHASE_ORDERS: PurchaseOrder[] = [
@@ -435,7 +465,9 @@ export const ROLE_PERMS: Record<Role, PermLevel[]> = {
   "Teknisi": ["view", "view", "view", "view", "none", "full", "full", "none", "none", "none", "none", "view", "none", "none"],
   "Kepala Teknisi": ["view", "full", "view", "view", "none", "full", "full", "view", "view", "view", "none", "full", "view", "none"],
   "Auditor": ["view", "view", "view", "view", "view", "view", "view", "view", "full", "view", "view", "view", "full", "none"],
-  "IT Administrator": ["view", "view", "view", "view", "view", "none", "none", "none", "view", "none", "none", "view", "view", "full"],
+  "IT Administrator": ["view", "view", "view", "view", "view", "none", "none", "full", "view", "full", "none", "view", "view", "full"],
+  "Finance": ["view", "none", "view", "none", "none", "none", "none", "full", "full", "full", "none", "none", "view", "none"],
+  "COO": ["view", "view", "view", "none", "none", "none", "none", "full", "full", "full", "view", "none", "view", "none"],
 };
 
 export const DEST_UNITS = ["IGD", "ICU", "ICCU", "NICU", "Kamar Operasi", "Hemodialisa", "Radiologi", "Laboratorium", "CSSD", "Rawat Inap", "Poli Gigi", "Farmasi"];

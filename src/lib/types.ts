@@ -9,7 +9,8 @@ export type View =
 
 export type Role =
   | "Direksi" | "Pengelola Aset" | "Pengelola Inventory" | "Kepala Gudang" | "Petugas Gudang"
-  | "Kepala Unit" | "Teknisi" | "Kepala Teknisi" | "Auditor" | "IT Administrator";
+  | "Kepala Unit" | "Teknisi" | "Kepala Teknisi" | "Auditor" | "IT Administrator"
+  | "Finance" | "COO";
 
 export type OpStatus = "IN_SERVICE" | "MAINTENANCE" | "CALIBRATION" | "DOWN" | "RETIRED" | "DISPOSED";
 export type CalStatus = "VALID" | "DUE_SOON" | "EXPIRED" | "FAILED" | "NOT_REQUIRED";
@@ -63,8 +64,39 @@ export interface Repair { id: string; code: string; eqId: string; complaintId: s
 export interface Approval { id: string; type: ApprovalType; ref: string; summary: string; requester: string; value: number; risk: Risk; matrix: string[]; status: "PENDING" | "APPROVED" | "REJECTED"; date: string; meta?: Record<string, string | number>; }
 
 export interface DemandPlan { id: string; code: string; item: string; qty: number; uom: string; estCost: number; unit: string; needBy: string; status: "DRAFT" | "SUBMITTED" | "REVIEWED" | "APPROVED" | "CONSOLIDATED"; by: string; }
-export interface PurchaseRequest { id: string; code: string; date: string; items: { sku: string; name: string; qty: number; estCost: number }[]; total: number; requester: string; status: "DRAFT" | "SUBMITTED" | "APPROVED" | "PO_CREATED"; }
+
+/* ── PR approval: 3 tahap per-barang ──
+   Tahap 1: IT (barang IT) atau UMUM (selain IT) → IT Administrator / Pengelola Inventory
+   Tahap 2: Keuangan → Finance
+   Tahap 3: COO (final)                                                              */
+export type PRStageStatus = "PENDING" | "APPROVED" | "REJECTED";
+export interface StageDecision { status: PRStageStatus; approver: string; note: string; date: string; }
+export interface PRLine { sku: string; name: string; qty: number; unitCost: number; isIT: boolean; stages: StageDecision[]; revision: number; }
+export interface PurchaseRequest { id: string; code: string; date: string; requester: string; unit: string; needBy: string; lines: PRLine[]; status: "IN_APPROVAL" | "APPROVED" | "PARTIAL" | "REJECTED" | "PO_CREATED"; }
 export interface PurchaseOrder { id: string; code: string; date: string; supplierId: string; items: { sku: string; name: string; qty: number; price: number }[]; total: number; eta: string; status: "SENT" | "PARTIAL" | "RECEIVED" | "CLOSED"; prRef: string; }
+
+export const isITSku = (sku: string) => sku.trim().toUpperCase().startsWith("IT-");
+export const prStageLabels = (isIT: boolean): string[] => [isIT ? "IT" : "UMUM", "KEUANGAN", "COO"];
+export const prStageRole = (isIT: boolean, idx: number): Role =>
+  idx === 0 ? (isIT ? "IT Administrator" : "Pengelola Inventory") : idx === 1 ? "Finance" : "COO";
+export const lineState = (l: PRLine): "REJECTED" | "APPROVED" | "IN_APPROVAL" => {
+  if (l.stages.some((st) => st.status === "REJECTED")) return "REJECTED";
+  if (l.stages.every((st) => st.status === "APPROVED")) return "APPROVED";
+  return "IN_APPROVAL";
+};
+export const lineActiveStage = (l: PRLine): number => l.stages.findIndex((st) => st.status === "PENDING");
+export const lineTotal = (l: PRLine) => l.qty * l.unitCost;
+export const prTotal = (pr: PurchaseRequest) => pr.lines.reduce((a, l) => a + lineTotal(l), 0);
+export const prState = (pr: PurchaseRequest): PurchaseRequest["status"] => {
+  if (pr.status === "PO_CREATED") return "PO_CREATED";
+  const states = pr.lines.map(lineState);
+  if (states.every((x) => x === "APPROVED")) return "APPROVED";
+  if (states.some((x) => x === "REJECTED")) return "REJECTED";
+  if (states.some((x) => x === "APPROVED")) return "PARTIAL";
+  return "IN_APPROVAL";
+};
+export const mkPendingStages = (): StageDecision[] =>
+  [0, 1, 2].map(() => ({ status: "PENDING", approver: "", note: "", date: "" }));
 
 export interface Receipt { id: string; ref: string; date: string; supplierId: string; sku: string; qty: number; batch: string | null; expiry: string | null; poRef: string | null; by: string; }
 export interface IssueRec { id: string; ref: string; date: string; sku: string; qty: number; dest: string; strategy: "FIFO" | "FEFO"; by: string; }
@@ -115,9 +147,11 @@ export const ROLE_USER: Record<Role, { name: string; initials: string }> = {
   "Pengelola Inventory": { name: "Galih Saputra", initials: "GS" },
   "Kepala Teknisi": { name: "Hendra Wijaya", initials: "HW" },
   "IT Administrator": { name: "Dian Pratiwi", initials: "DP" },
+  "Finance": { name: "Ratna Dewi, S.E.", initials: "RD" },
+  "COO": { name: "dr. H. Ahmad Fauzi, MARS", initials: "AF" },
 };
 
-export const ROLES: Role[] = ["Direksi", "Pengelola Aset", "Pengelola Inventory", "Kepala Gudang", "Petugas Gudang", "Kepala Unit", "Teknisi", "Kepala Teknisi", "Auditor", "IT Administrator"];
+export const ROLES: Role[] = ["Direksi", "Pengelola Aset", "Pengelola Inventory", "Kepala Gudang", "Petugas Gudang", "Kepala Unit", "Teknisi", "Kepala Teknisi", "Auditor", "IT Administrator", "Finance", "COO"];
 
 export const ROLE_SCOPE: Record<Role, string> = {
   "Direksi": "Seluruh organisasi (multi-cabang ready)",
@@ -129,7 +163,9 @@ export const ROLE_SCOPE: Record<Role, string> = {
   "Teknisi": "Work order & equipment yang ditugaskan",
   "Kepala Teknisi": "Seluruh WO, kalibrasi & teknisi",
   "Auditor": "Read-only global + audit trail penuh",
-  "IT Administrator": "Konfigurasi, RBAC & integrasi",
+  "IT Administrator": "Konfigurasi, RBAC & integrasi · approver PR tahap-1 untuk barang IT",
+  "Finance": "Otorisasi keuangan — approver PR tahap-2 (Keuangan)",
+  "COO": "Chief Operating Officer — approver PR tahap-3 (final)",
 };
 
 /* ── format helpers ── */
