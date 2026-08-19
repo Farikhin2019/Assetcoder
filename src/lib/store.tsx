@@ -1,13 +1,15 @@
 import React, { createContext, useContext, useMemo, useReducer } from "react";
 import {
-  ADJ_APPROVAL_THRESHOLD, Accessory, AuditEntry, Complaint, Equipment, FormResult, Inspection, InventoryItem,
-  LedgerEntry, Notif, NotifKind, OpnameSession, Priority, PurchaseOrder, Repair, Role, ROLE_USER, SLA_BY_PRIORITY,
-  TimelineEvent, Toast, TransferRecord, TxType, View, WorkOrder, d, daysUntil, fmtIDR, uid,
+  ADJ_APPROVAL_THRESHOLD, Accessory, AuditEntry, BizContract, Complaint, DEPR_SALVAGE, DepreciationTx, Equipment,
+  FormResult, Inspection, InventoryItem, LedgerEntry, Loan, Notif, NotifKind, OpnameSession, Priority, PurchaseOrder,
+  Rental, Repair, Role, ROLE_USER, SLA_BY_PRIORITY, TimelineEvent, Toast, TransferRecord, TxType, View, WorkOrder,
+  d, daysUntil, fmtIDR, lifeYears, monthlyDep, periodKey, uid,
 } from "./types";
 import {
-  ACCESSORIES, APPROVALS, AUDIT, BUILDINGS, CALIBRATIONS, COMPLAINTS, DEMAND_PLANS, EQUIPMENT, FORM_TEMPLATES,
-  INSPECTIONS, ISSUES, ITEMS, LEDGER_INIT, NOTIFS, OPNAMES, PURCHASE_ORDERS, PURCHASE_REQUESTS, RECEIPTS, REPAIRS,
-  SPARE_PARTS, SUPPLIERS, TECHNICIANS, TIMELINE, TRANSFERS, WORK_ORDERS,
+  ACCESSORIES, APPROVALS, AUDIT, BUILDINGS, CALIBRATIONS, COMPLAINTS, CONTRACTS, DEMAND_PLANS, DEPR_POSTED,
+  EQUIPMENT, FORM_TEMPLATES, INSPECTIONS, ISSUES, ITEMS, LEDGER_INIT, LOANS, NOTIFS, OPNAMES, PURCHASE_ORDERS,
+  PURCHASE_REQUESTS, RECEIPTS, RENTALS, REPAIRS, SPARE_PARTS, SUPPLIERS, TECHNICIANS, TIMELINE, TRANSFERS,
+  UTIL_SERIES, WORK_ORDERS,
 } from "./data";
 
 export interface AppState {
@@ -19,6 +21,8 @@ export interface AppState {
   demandPlans: typeof DEMAND_PLANS; purchaseRequests: typeof PURCHASE_REQUESTS; purchaseOrders: PurchaseOrder[];
   receipts: typeof RECEIPTS; issues: typeof ISSUES; opnames: OpnameSession[]; transfers: TransferRecord[];
   technicians: typeof TECHNICIANS; suppliers: typeof SUPPLIERS; accessories: Accessory[];
+  loans: Loan[]; rentals: Rental[]; contracts: BizContract[];
+  deprPosted: Record<string, string[]>; utilSeries: Record<string, number[]>;
   audit: AuditEntry[]; notifs: Notif[]; toasts: Toast[];
 }
 
@@ -31,6 +35,8 @@ const INIT: AppState = {
   demandPlans: DEMAND_PLANS, purchaseRequests: PURCHASE_REQUESTS, purchaseOrders: PURCHASE_ORDERS,
   receipts: RECEIPTS, issues: ISSUES, opnames: OPNAMES, transfers: TRANSFERS,
   technicians: TECHNICIANS, suppliers: SUPPLIERS, accessories: ACCESSORIES,
+  loans: LOANS, rentals: RENTALS, contracts: CONTRACTS,
+  deprPosted: DEPR_POSTED, utilSeries: UTIL_SERIES,
   audit: AUDIT, notifs: NOTIFS, toasts: [],
 };
 
@@ -68,7 +74,15 @@ type Act =
   | { t: "PO_RECEIVE"; poId: string }
   | { t: "ADD_TECH"; name: string; specialty: string; cert: string; phone: string; vendor: boolean }
   | { t: "ADD_SUPPLIER"; name: string; service: string; contractUntil: string; contact: string }
-  | { t: "ADD_ACCESSORY"; name: string; eqId: string; qty: number; condition: Equipment["condition"]; note: string };
+  | { t: "ADD_ACCESSORY"; name: string; eqId: string; qty: number; condition: Equipment["condition"]; note: string }
+  | { t: "LOAN_REQUEST"; eqId: string; toUnit: string; borrower: string; due: string; note: string }
+  | { t: "LOAN_ADVANCE"; id: string }
+  | { t: "LOAN_RETURN"; id: string; condition: string }
+  | { t: "LOAN_CLOSE"; id: string }
+  | { t: "RENTAL_CREATE"; eqId: string; party: string; perDay: number; days: number }
+  | { t: "RENTAL_END"; id: string }
+  | { t: "DEPRECIATE_POST" }
+  | { t: "LOG_USAGE"; eqId: string; hours: number };
 
 const now = () => new Date().toISOString();
 const mkAudit = (actor: string, role: string, action: string, entity: string, entityId: string, reason?: string, delta?: string): AuditEntry => ({ id: "AUD-" + uid(), date: now(), actor, role, action, entity, entityId, reason, delta });
@@ -272,7 +286,13 @@ function reducer(s: AppState, a: Act): AppState {
         audit: [mkAudit(me.name, s.role, a.ok ? "APPROVAL.APPROVE" : "APPROVAL.REJECT", "approval", ap.ref, a.note || undefined), ...s.audit],
         toasts: [...s.toasts, okToast(`${ap.ref} ${a.ok ? "disetujui" : "ditolak"}`, a.ok ? "ok" : "warn")],
       };
-      if (!a.ok) return next;
+      if (!a.ok) {
+        if (ap.type === "LOAN") {
+          const loanId = String((ap.meta ?? {}).loanId);
+          next = { ...next, loans: next.loans.map((x) => (x.id === loanId ? { ...x, status: "REJECTED" } : x)) };
+        }
+        return next;
+      }
       const meta = (ap.meta ?? {}) as Record<string, string | number>;
       if (ap.type === "TRANSFER") {
         const eq = s.equipment.find((e) => e.id === String(meta.eqId))!;
@@ -308,6 +328,17 @@ function reducer(s: AppState, a: Act): AppState {
           purchaseRequests: next.purchaseRequests.map((p) => (p.id === prId ? { ...p, status: "APPROVED" } : p)),
           toasts: [...next.toasts, okToast(`${ap.ref} disetujui — lanjutkan buat PO di Procurement`, "info")],
         };
+      }
+      if (ap.type === "LOAN") {
+        const loanId = String(meta.loanId);
+        const ln = s.loans.find((x) => x.id === loanId);
+        if (ln) {
+          next = {
+            ...next,
+            loans: next.loans.map((x) => (x.id === loanId ? { ...x, status: "APPROVED" } : x)),
+            timeline: [mkTimeline(ln.eqId, "UTILIZATION", `Pinjaman ${ln.code} disetujui`, "Aset siap diserahterimakan ke peminjam.", me.name, undefined, "APPROVED"), ...next.timeline],
+          };
+        }
       }
       return next;
     }
@@ -479,6 +510,118 @@ function reducer(s: AppState, a: Act): AppState {
       };
     }
 
+    /* ── Phase 3: loan, rental, depreciation, usage ── */
+
+    case "LOAN_REQUEST": {
+      const eq = s.equipment.find((e) => e.id === a.eqId)!;
+      const code = "LOAN-2608-" + String(4 + s.loans.length).padStart(3, "0");
+      const ln: Loan = { id: "LN-" + uid(), code, eqId: a.eqId, toUnit: a.toUnit, borrower: a.borrower, requested: now(), due: a.due, status: "REQUESTED", note: a.note };
+      const apr = { id: "APR-" + uid(), type: "LOAN" as const, ref: code, requester: me.name, value: eq.acqCost, risk: eq.risk, summary: `Pinjaman ${eq.name} → ${a.toUnit} (s.d. ${a.due.slice(0, 10)})`, matrix: ["Kepala Unit asal", "Pengelola Aset"], status: "PENDING" as const, date: now(), meta: { loanId: ln.id, eqId: a.eqId } };
+      return {
+        ...s, loans: [ln, ...s.loans], approvals: [apr, ...s.approvals],
+        timeline: [mkTimeline(a.eqId, "UTILIZATION", `Permintaan pinjaman ${code}`, `${eq.room} → ${a.toUnit} (peminjam: ${a.borrower}). Menunggu persetujuan.`, me.name, undefined, "REQUESTED"), ...s.timeline],
+        audit: [mkAudit(me.name, s.role, "LOAN.REQUEST", "asset_loan", code, a.note, `${eq.code} → ${a.toUnit}`), ...s.audit],
+        notifs: [mkNotif("APPROVAL_PENDING", `Persetujuan pinjaman ${code} — ${eq.name} ke ${a.toUnit}.`, a.eqId), ...s.notifs],
+        toasts: [...s.toasts, okToast(`Pinjaman ${code} masuk antrian persetujuan`, "info")],
+      };
+    }
+
+    case "LOAN_ADVANCE": {
+      const ln = s.loans.find((x) => x.id === a.id)!;
+      const eq = s.equipment.find((e) => e.id === ln.eqId)!;
+      return {
+        ...s, loans: s.loans.map((x) => (x.id === a.id ? { ...x, status: "ON_LOAN" } : x)),
+        timeline: [mkTimeline(ln.eqId, "UTILIZATION", `${ln.code} diserahterimakan`, `${eq.name} diterima ${ln.toUnit}; peminjam ${ln.borrower}.`, me.name, undefined, "ON_LOAN"), ...s.timeline],
+        audit: [mkAudit(me.name, s.role, "LOAN.HANDOVER", "asset_loan", ln.code, undefined, "status APPROVED → ON_LOAN"), ...s.audit],
+        toasts: [...s.toasts, okToast(`${ln.code} serah terima selesai — aset berstatus pinjaman`)],
+      };
+    }
+
+    case "LOAN_RETURN": {
+      const ln = s.loans.find((x) => x.id === a.id)!;
+      return {
+        ...s, loans: s.loans.map((x) => (x.id === a.id ? { ...x, status: "RETURNED", returnCondition: a.condition } : x)),
+        timeline: [mkTimeline(ln.eqId, "UTILIZATION", `${ln.code} dikembalikan`, `Kondisi saat kembali: ${a.condition}. Menunggu inspeksi penutup.`, me.name, undefined, "RETURNED"), ...s.timeline],
+        audit: [mkAudit(me.name, s.role, "LOAN.RETURN", "asset_loan", ln.code, a.condition, "status ON_LOAN → RETURNED"), ...s.audit],
+        toasts: [...s.toasts, okToast(`${ln.code} dikembalikan — lanjut inspeksi & tutup`, "info")],
+      };
+    }
+
+    case "LOAN_CLOSE": {
+      const ln = s.loans.find((x) => x.id === a.id)!;
+      return {
+        ...s, loans: s.loans.map((x) => (x.id === a.id ? { ...x, status: "CLOSED" } : x)),
+        timeline: [mkTimeline(ln.eqId, "UTILIZATION", `${ln.code} ditutup`, "Inspeksi pengembalian lolos; aset kembali ke pool unit asal.", me.name, undefined, "CLOSED"), ...s.timeline],
+        audit: [mkAudit(me.name, s.role, "LOAN.CLOSE", "asset_loan", ln.code, "Inspeksi pengembalian"), ...s.audit],
+        toasts: [...s.toasts, okToast(`${ln.code} ditutup — pinjaman selesai`)],
+      };
+    }
+
+    case "RENTAL_CREATE": {
+      const eq = s.equipment.find((e) => e.id === a.eqId)!;
+      const code = "RENT-2608-" + String(2 + s.rentals.length).padStart(3, "0");
+      const end = new Date(Date.now() + a.days * 864e5).toISOString();
+      const revenue = a.perDay * a.days;
+      const rt: Rental = { id: "RT-" + uid(), code, eqId: a.eqId, party: a.party, start: now(), end, perDay: a.perDay, status: "ACTIVE" };
+      const ct: BizContract = { id: "CT-" + uid(), code: "RTL-" + code.slice(5), kind: "RENTAL", name: `Sewa ${eq.name} — ${a.party}`, party: a.party, value: revenue, start: now(), until: end, status: "ACTIVE", note: `${a.days} hari × ${fmtIDR(a.perDay)}/hari` };
+      return {
+        ...s, rentals: [rt, ...s.rentals], contracts: [ct, ...s.contracts],
+        timeline: [mkTimeline(a.eqId, "FINANCE", `Sewa ${code} aktif`, `${a.party} · ${a.days} hari × ${fmtIDR(a.perDay)} = ${fmtIDR(revenue)}.`, me.name, revenue, "ACTIVE"), ...s.timeline],
+        audit: [mkAudit(me.name, s.role, "UTILIZATION.RENTAL", "asset_rental", code, a.party, fmtIDR(revenue)), ...s.audit],
+        toasts: [...s.toasts, okToast(`Sewa ${code} aktif — potensi pendapatan ${fmtIDR(revenue)}`)],
+      };
+    }
+
+    case "RENTAL_END": {
+      const rt = s.rentals.find((x) => x.id === a.id)!;
+      return {
+        ...s,
+        rentals: s.rentals.map((x) => (x.id === a.id ? { ...x, status: "COMPLETED" } : x)),
+        contracts: s.contracts.map((c) => (c.code === "RTL-" + rt.code.slice(5) ? { ...c, status: "EXPIRED" } : c)),
+        timeline: [mkTimeline(rt.eqId, "FINANCE", `Sewa ${rt.code} selesai`, `${rt.party} — aset kembali ke rumah sakit & diperiksa.`, me.name, undefined, "COMPLETED"), ...s.timeline],
+        audit: [mkAudit(me.name, s.role, "UTILIZATION.RENTAL.END", "asset_rental", rt.code), ...s.audit],
+        toasts: [...s.toasts, okToast(`${rt.code} ditutup — pendapatan direalisasikan`)],
+      };
+    }
+
+    case "DEPRECIATE_POST": {
+      const period = periodKey(new Date());
+      const targets = s.equipment.filter((e) => e.opStatus !== "RETIRED" && !(s.deprPosted[e.id] ?? []).includes(period));
+      if (targets.length === 0) return { ...s, toasts: [...s.toasts, okToast(`Depresiasi ${period} sudah diposting untuk semua aset`, "warn")] };
+      const deprPosted = { ...s.deprPosted };
+      const timelines: TimelineEvent[] = [];
+      let total = 0; let count = 0;
+      for (const e of targets) {
+        const monthly = monthlyDep(e.acqCost, e.category);
+        const lifeM = lifeYears(e.category) * 12;
+        const posted = (deprPosted[e.id] ?? []).length;
+        if (posted >= lifeM) continue;
+        const remaining = e.acqCost * (1 - DEPR_SALVAGE) - posted * monthly;
+        const amount = Math.min(monthly, Math.max(0, remaining));
+        const accum = posted * monthly + amount;
+        deprPosted[e.id] = [...(deprPosted[e.id] ?? []), period];
+        total += amount; count++;
+        timelines.push(mkTimeline(e.id, "FINANCE", `Depresiasi ${period} diposting`, `Metode garis lurus · bulan ke-${posted + 1}/${lifeM} · ${fmtIDR(amount)} · NBV ${fmtIDR(e.acqCost - accum)}.`, "system", amount));
+      }
+      return {
+        ...s, deprPosted,
+        timeline: [...timelines, ...s.timeline],
+        audit: [mkAudit(me.name, s.role, "DEPRECIATION.POST", "depreciation_schedule", period, "Posting bulanan (job terjadwal)", `${count} aset · total ${fmtIDR(total)}`), ...s.audit],
+        toasts: [...s.toasts, okToast(`Depresiasi ${period} diposting — ${count} aset · ${fmtIDR(total)}`)],
+      };
+    }
+
+    case "LOG_USAGE": {
+      const eq = s.equipment.find((e) => e.id === a.eqId)!;
+      const arr = s.utilSeries[a.eqId] ?? [];
+      const nextArr = arr.length ? [...arr.slice(0, -1), arr[arr.length - 1] + a.hours] : [a.hours];
+      return {
+        ...s, utilSeries: { ...s.utilSeries, [a.eqId]: nextArr },
+        timeline: [mkTimeline(a.eqId, "UTILIZATION", `Pemakaian +${a.hours} jam dicatat`, "Sinkron dari lapangan (mobile/PWA offline queue).", me.name), ...s.timeline],
+        toasts: [...s.toasts, okToast(`+${a.hours} jam pemakaian ${eq.name} tercatat`)],
+      };
+    }
+
     case "ADD_TECH": {
       const t = { id: "T-" + String(6 + s.technicians.length).padStart(2, "0"), name: a.name, specialty: a.specialty, cert: a.cert, phone: a.phone, vendor: a.vendor };
       return { ...s, technicians: [...s.technicians, t], audit: [mkAudit(me.name, s.role, "MASTER.CREATE", "technician", t.id, undefined, a.name), ...s.audit], toasts: [...s.toasts, okToast(`Teknisi ${a.name} ditambahkan`)] };
@@ -530,6 +673,10 @@ interface Api {
   addTechnician: (p: { name: string; specialty: string; cert: string; phone: string; vendor: boolean }) => void;
   addSupplier: (p: { name: string; service: string; contractUntil: string; contact: string }) => void;
   addAccessory: (p: { name: string; eqId: string; qty: number; condition: Equipment["condition"]; note: string }) => void;
+  requestLoan: (eqId: string, toUnit: string, borrower: string, due: string, note: string) => void;
+  advanceLoan: (id: string) => void; returnLoan: (id: string, condition: string) => void; closeLoan: (id: string) => void;
+  createRental: (eqId: string, party: string, perDay: number, days: number) => void; endRental: (id: string) => void;
+  postDepreciation: () => void; logUsage: (eqId: string, hours: number) => void;
 }
 
 const Ctx = createContext<Api | null>(null);
@@ -572,6 +719,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     addTechnician: (p) => dispatch({ t: "ADD_TECH", ...p }),
     addSupplier: (p) => dispatch({ t: "ADD_SUPPLIER", ...p }),
     addAccessory: (p) => dispatch({ t: "ADD_ACCESSORY", ...p }),
+    requestLoan: (eqId, toUnit, borrower, due, note) => dispatch({ t: "LOAN_REQUEST", eqId, toUnit, borrower, due, note }),
+    advanceLoan: (id) => dispatch({ t: "LOAN_ADVANCE", id }),
+    returnLoan: (id, condition) => dispatch({ t: "LOAN_RETURN", id, condition }),
+    closeLoan: (id) => dispatch({ t: "LOAN_CLOSE", id }),
+    createRental: (eqId, party, perDay, days) => dispatch({ t: "RENTAL_CREATE", eqId, party, perDay, days }),
+    endRental: (id) => dispatch({ t: "RENTAL_END", id }),
+    postDepreciation: () => dispatch({ t: "DEPRECIATE_POST" }),
+    logUsage: (eqId, hours) => dispatch({ t: "LOG_USAGE", eqId, hours }),
   }), [s]);
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>;
 }
@@ -587,4 +742,12 @@ export const itemHealth = (i: InventoryItem): "ok" | "low" | "expiry" | "critica
   if (i.stock <= i.min * 0.4) return "critical";
   if (i.stock <= i.reorder) return "low";
   return "ok";
+};
+
+/* utilization % dari series jam pemakaian mingguan (4 minggu terakhir / 168 jam tersedia) */
+export const utilOf = (series: Record<string, number[]>, id: string, fallback: number): number => {
+  const arr = series[id];
+  if (!arr || arr.length === 0) return fallback;
+  const last4 = arr.slice(-4);
+  return Math.min(99, Math.round((last4.reduce((x, y) => x + y, 0) / last4.length / 168) * 100));
 };

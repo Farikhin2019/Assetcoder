@@ -1,8 +1,8 @@
 import { useMemo } from "react";
-import { itemHealth, useApp } from "../lib/store";
-import { Bar, Card, Chip, SectionHead, StatusChip } from "../components/ui";
-import { IcDownload } from "../components/icons";
-import { fmtDate, fmtIDRCompact } from "../lib/types";
+import { itemHealth, useApp, utilOf } from "../lib/store";
+import { Bar, BtnSm, Card, Chip, SectionHead, StatusChip } from "../components/ui";
+import { IcBolt, IcDownload, IcSend } from "../components/icons";
+import { daysUntil, fmtDate, fmtIDRCompact, idleStatusOf } from "../lib/types";
 
 const C = { pine: "#177057", warn: "#f2a93b", danger: "#bb3a2b", info: "#2c6e8f", mute: "#c9d4cb", ink: "#14211c" };
 
@@ -53,7 +53,7 @@ function HBars({ data }: { data: { l: string; v: number; c: string }[] }) {
 }
 
 export default function Reporting() {
-  const { s, toast } = useApp();
+  const { s, toast, nav, requestTransfer } = useApp();
 
   const m = useMemo(() => {
     const util = Math.round(s.equipment.reduce((a, e) => a + e.utilization, 0) / s.equipment.length);
@@ -73,6 +73,46 @@ export default function Reporting() {
     const stockout = 3.1;
     return { util, idleRate, pmCompliance, calCompliance, slaCompliance, repairRate, invAcc, turnover, stockout, closedWo, calOk, calTotal, cmpClosed };
   }, [s]);
+
+  /* ── Phase 4 preview: intelligence signals (rule-based, live) ── */
+  const intel = useMemo(() => {
+    const cutoff = Date.now() - 60 * 864e5;
+    const forecast = s.items.map((i) => {
+      const used = s.ledger
+        .filter((l) => l.sku === i.sku && (l.type === "ISSUE" || l.type === "CONSUMPTION") && new Date(l.date).getTime() >= cutoff)
+        .reduce((a, l) => a + Math.abs(l.qty), 0);
+      const perDay = used / 60;
+      const coverage = perDay > 0 ? i.stock / perDay : 999;
+      return { i, used, perDay, coverage };
+    }).filter((x) => x.used > 0).sort((a, b) => a.coverage - b.coverage).slice(0, 7);
+
+    const pm = s.equipment.map((e) => {
+      const overdueDays = Math.max(0, -daysUntil(e.nextMaint));
+      const pct = utilOf(s.utilSeries, e.id, e.utilization);
+      const score = overdueDays * 2
+        + (e.risk === "HIGH" ? 30 : e.risk === "MEDIUM" ? 15 : 5)
+        + (e.criticality === "CRITICAL" ? 20 : e.criticality === "HIGH" ? 10 : 0)
+        + (pct > 85 ? 15 : 0);
+      return { e, score, overdueDays, pct };
+    }).sort((a, b) => b.score - a.score).slice(0, 5);
+
+    const anomalies: { label: string; sev: "danger" | "warn"; id: string; go: () => void }[] = [];
+    s.complaints.filter((c) => !["CLOSED", "VERIFIED", "RESOLVED"].includes(c.status) && Date.now() - new Date(c.date).getTime() > c.slaHours * 36e5)
+      .forEach((c) => anomalies.push({ label: `SLA breach ${c.code}`, sev: "danger", id: c.id, go: () => nav("complaints") }));
+    s.equipment.filter((e) => ["EXPIRED", "FAILED"].includes(e.calStatus))
+      .forEach((e) => anomalies.push({ label: `Kalibrasi ${e.calStatus} — ${e.name}`, sev: "danger", id: e.id, go: () => nav("equipment-detail", e.id) }));
+    s.inspections.filter((i) => i.result === "FAIL")
+      .forEach((i) => anomalies.push({ label: `Inspeksi FAIL ${i.code}`, sev: "danger", id: i.id, go: () => nav("technical") }));
+    s.items.filter((i) => i.stock <= i.min)
+      .forEach((i) => anomalies.push({ label: `Stok ≤ min — ${i.name}`, sev: "warn", id: i.sku, go: () => nav("inventory") }));
+    s.suppliers.filter((sp) => daysUntil(sp.contractUntil) < 0)
+      .forEach((sp) => anomalies.push({ label: `Kontrak expired — ${sp.name}`, sev: "warn", id: sp.id, go: () => nav("master") }));
+
+    const idleAssets = s.equipment.map((e) => ({ e, pct: utilOf(s.utilSeries, e.id, e.utilization) }))
+      .filter((x) => x.pct < 40).sort((a, b) => a.pct - b.pct);
+
+    return { forecast, pm, anomalies, idleAssets };
+  }, [s, nav]);
 
   const maintByType = useMemo(() => {
     const g = (t: string) => s.workOrders.filter((w) => w.type === t).length;
@@ -219,7 +259,104 @@ export default function Reporting() {
         </div>
       </Card>
 
-      <p className="font-mono text-[10.5px] text-mute">MTTR/MTBF & repeat-failure rate dihitung dari event timeline per aset · ketersediaan laporan jadwal via job queue (Phase 3: executive dashboard).</p>
+      {/* ── Phase 4 preview: SIMASET Intelligence ── */}
+      <div className="dark-grain rounded-lg p-4 text-pine-50">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-9 w-9 items-center justify-center rounded-md bg-warnhi/20 text-warnhi"><IcBolt size={17} /></span>
+            <div>
+              <h2 className="font-display text-[16px] font-black tracking-tight">SIMASET Intelligence</h2>
+              <p className="font-mono text-[10px] text-pine-100/70">Phase 4 preview · rule-based engine — semua sinyal dihitung live dari ledger, timeline & series</p>
+            </div>
+          </div>
+          <Chip tone="warn" dot>{intel.anomalies.length} anomali · {intel.forecast.filter((f) => f.coverage < 30).length} risiko stockout</Chip>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+        {/* demand forecasting */}
+        <Card className="p-4">
+          <SectionHead title="AI Demand Forecasting" sub="konsumsi 60 hari → proyeksi coverage · rekomendasi pengadaan otomatis" />
+          <div className="space-y-1.5">
+            {intel.forecast.map((f) => (
+              <div key={f.i.sku} className="flex items-center gap-2.5 rounded-md border border-line bg-paper px-3 py-2">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[12px] font-bold text-ink">{f.i.name}</p>
+                  <p className="font-mono text-[9.5px] text-mute">{f.i.sku} · terpakai {f.used} / 60 hr · {f.perDay.toFixed(1)}/hari</p>
+                </div>
+                <Chip tone={f.coverage < 15 ? "danger" : f.coverage < 30 ? "warn" : "ok"} dot>{f.coverage > 500 ? "aman" : `${Math.round(f.coverage)} hari`}</Chip>
+                {f.coverage < 30 && <BtnSm onClick={() => nav("procurement")} className="!border-warn/50 !text-warn">Buat PR →</BtnSm>}
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        {/* predictive maintenance */}
+        <Card className="p-4">
+          <SectionHead title="Predictive Maintenance" sub="skor risiko kegagalan: overdue PM + criticality + beban utilisasi" />
+          <div className="space-y-2">
+            {intel.pm.map(({ e, score, overdueDays, pct }) => (
+              <div key={e.id} className="rounded-md border border-line bg-paper px-3 py-2">
+                <div className="flex items-center justify-between gap-2">
+                  <button onClick={() => nav("equipment-detail", e.id)} className="truncate text-left text-[12px] font-bold text-ink hover:text-pine-700">{e.name}</button>
+                  <span className="num shrink-0 font-mono text-[11px] font-black text-ink">{score} <span className="font-medium text-mute">pts</span></span>
+                </div>
+                <div className="mt-1.5 flex items-center gap-2">
+                  <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-moss">
+                    <div className="bar-fill h-full rounded-full" style={{ width: `${Math.min(100, score)}%`, background: score > 50 ? C.danger : score > 30 ? C.warn : C.pine }} />
+                  </div>
+                  <span className="shrink-0 font-mono text-[9.5px] text-mute">
+                    {overdueDays > 0 ? `PM overdue ${overdueDays}h` : `PM ${daysUntil(e.nextMaint)}h lagi`} · util {pct}%
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        {/* anomaly detection */}
+        <Card className="p-4">
+          <SectionHead title="Anomaly Detection" sub="SLA breach · kalibrasi gagal · inspeksi FAIL · stok minimum · kontrak" />
+          {intel.anomalies.length === 0 ? (
+            <p className="rounded-md bg-okbg px-3 py-2.5 text-xs font-bold text-ok">Tidak ada anomali aktif — semua sinyal normal.</p>
+          ) : (
+            <div className="flex flex-wrap gap-1.5">
+              {intel.anomalies.map((a) => (
+                <button key={a.id + a.label} onClick={a.go}
+                  className={`rounded-md border px-2.5 py-1.5 text-left text-[11px] font-semibold transition hover:-translate-y-0.5 hover:shadow-md ${a.sev === "danger" ? "border-danger/40 bg-dangerbg text-danger" : "border-warn/40 bg-warnbg text-warn"}`}>
+                  {a.label} →
+                </button>
+              ))}
+            </div>
+          )}
+          <p className="mt-3 border-t border-line pt-2.5 font-mono text-[10px] text-mute">Model ML penuh (isolation forest pada metrik aset) dijadwalkan nightly — Phase 4 GA.</p>
+        </Card>
+
+        {/* utilization recommendation */}
+        <Card className="p-4">
+          <SectionHead title="Utilization Recommendation" sub="aset < 40% — kandidat redistribusi ke unit sibuk" />
+          {intel.idleAssets.length === 0 ? (
+            <p className="rounded-md bg-okbg px-3 py-2.5 text-xs font-bold text-ok">Portofolio sehat — tidak ada aset idle.</p>
+          ) : (
+            <div className="space-y-1.5">
+              {intel.idleAssets.map(({ e, pct }) => (
+                <div key={e.id} className="flex items-center gap-2.5 rounded-md border border-line bg-paper px-3 py-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[12px] font-bold text-ink">{e.name}</p>
+                    <p className="font-mono text-[9.5px] text-mute">{e.room} · util {pct}% · {fmtIDRCompact(e.acqCost)} menganggur</p>
+                  </div>
+                  <StatusChip status={idleStatusOf(pct)} />
+                  <BtnSm disabled={s.role === "Auditor"} onClick={() => { requestTransfer(e.id, e.building, "Lantai 1", "Pool Aset Sentral", `Rekomendasi Intelligence — utilisasi ${pct}% (< ambang 40%).`); toast(`${e.name} diajukan ke Pool Aset`, "info"); }} className="!border-danger/40 !text-danger">
+                    <IcSend size={11} /> Redistribusi
+                  </BtnSm>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      </div>
+
+      <p className="font-mono text-[10.5px] text-mute">MTTR/MTBF & repeat-failure rate dihitung dari event timeline per aset · AI Executive Assistant = antrian perhatian di Dashboard (Phase 4).</p>
     </div>
   );
 }

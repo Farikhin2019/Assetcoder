@@ -2,8 +2,8 @@ import React, { useEffect, useRef, useState } from "react";
 import { StoreProvider, useApp } from "./lib/store";
 import { Chip, ToastHost } from "./components/ui";
 import {
-  IcBell, IcBolt, IcBox, IcChart, IcCheck, IcChevD, IcClose, IcClock, IcFlag, IcGauge, IcHospital,
-  IcLayers, IcPin, IcPlus, IcPulse, IcScan, IcScroll, IcSearch, IcShield, IcStamp, IcTruck, IcUser, IcWarn, IcWrench, IcCart, IcPhone,
+  IcBell, IcBolt, IcBox, IcChart, IcCheck, IcChevD, IcClose, IcClock, IcFlag, IcGauge, IcHospital, IcLedger,
+  IcLayers, IcPin, IcPlus, IcPulse, IcScan, IcScroll, IcSearch, IcShield, IcStamp, IcSwap, IcTruck, IcUser, IcWarn, IcWrench, IcCart, IcPhone,
 } from "./components/icons";
 import { ROLES, ROLE_USER, Role, View, fmtDate, relTime } from "./lib/types";
 import { RegisterModal } from "./components/modals";
@@ -22,6 +22,9 @@ import Locations from "./views/Locations";
 import Approvals from "./views/Approvals";
 import AuditTrail from "./views/AuditTrail";
 import Rbac from "./views/Rbac";
+import Utilization from "./views/Utilization";
+import RentalLoan from "./views/RentalLoan";
+import Depreciation from "./views/Depreciation";
 
 const TITLES: Record<View, string> = {
   dashboard: "Dashboard", equipment: "Equipment Registry", "equipment-detail": "Equipment 360°",
@@ -29,6 +32,7 @@ const TITLES: Record<View, string> = {
   technical: "Technical Operations", complaints: "Complaints & Repairs", procurement: "Procurement",
   reporting: "Reporting & Analytics", master: "Master Data", locations: "Lokasi, Transfer & QR",
   approvals: "Approval Engine", audit: "Audit Trail", rbac: "Peran & Akses",
+  utilization: "Asset Utilization", rental: "Sewa, Pinjaman & BGS/SGB", depreciation: "Depreciation",
 };
 
 function Clock() {
@@ -156,6 +160,11 @@ function Shell() {
       { id: "complaints", label: "Complaints & Repairs", icon: <IcFlag size={15} /> },
       { id: "procurement", label: "Procurement", icon: <IcCart size={15} /> },
     ]},
+    { group: "Pemanfaatan & Finansial", items: [
+      { id: "utilization", label: "Utilisasi & Idle", icon: <IcChart size={15} /> },
+      { id: "rental", label: "Sewa, Pinjam & BGS", icon: <IcSwap size={15} /> },
+      { id: "depreciation", label: "Depresiasi", icon: <IcLedger size={15} /> },
+    ]},
     { group: "Master", items: [
       { id: "master", label: "Master Data", icon: <IcHospital size={15} /> },
     ]},
@@ -210,9 +219,9 @@ function Shell() {
           <div className="mx-1 mt-2 rounded-md border border-pine-800 bg-pine-950/50 p-2.5">
             <p className="font-mono text-[8.5px] font-bold uppercase tracking-[0.16em] text-pine-500">Phase roadmap</p>
             <div className="mt-1.5 space-y-1">
-              {[["P1 Core Inventory & Asset", true], ["P2 Technical Operations", true], ["P3 Utilization & Finance", false], ["P4 Enterprise Intelligence", false]].map(([label, on]) => (
+              {[["P1 Core Inventory & Asset", true], ["P2 Technical Operations", true], ["P3 Utilization & Finance", true], ["P4 Enterprise Intelligence", "half"]].map(([label, on]) => (
                 <p key={label as string} className="flex items-center gap-1.5 font-mono text-[9.5px] text-pine-100/70">
-                  {on ? <IcCheck size={10} className="text-pine-500" /> : <IcClose size={10} className="text-pine-700" />} {label}
+                  {on === true ? <IcCheck size={10} className="text-pine-500" /> : on === "half" ? <IcBolt size={10} className="text-warnhi" /> : <IcClose size={10} className="text-pine-700" />} {label}{on === "half" ? " · preview" : ""}
                 </p>
               ))}
             </div>
@@ -300,9 +309,12 @@ function Shell() {
             {s.view === "approvals" && <Approvals />}
             {s.view === "audit" && <AuditTrail />}
             {s.view === "rbac" && <Rbac />}
+            {s.view === "utilization" && <Utilization />}
+            {s.view === "rental" && <RentalLoan />}
+            {s.view === "depreciation" && <Depreciation />}
           </div>
           <footer className="mx-auto flex max-w-[1240px] flex-wrap items-center justify-between gap-2 px-4 pb-5 lg:px-6">
-            <p className="font-mono text-[10px] text-mute">SIMASET v2.0 · PRD 18 Aug 2026 · Phase 1–2 complete · transaction-driven · full traceability</p>
+            <p className="font-mono text-[10px] text-mute">SIMASET v3.0 · PRD 18 Aug 2026 · Phase 1–3 complete · P4 Intelligence preview · transaction-driven</p>
             <p className="flex items-center gap-1.5 font-mono text-[10px] text-mute"><IcPhone size={11} className="text-pine-600" /> Mobile/PWA: offline queue + QR scan <span className="mx-1 text-line2">·</span> <IcWarn size={11} className="text-warnhi" /> API p95 &lt; 500ms · availability 99,9%</p>
           </footer>
         </main>

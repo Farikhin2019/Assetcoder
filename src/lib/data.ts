@@ -1,8 +1,8 @@
 import {
-  Accessory, Approval, AuditEntry, Building, CalibrationRecord, Complaint, DemandPlan, Equipment, FormTemplate,
-  Inspection, InventoryItem, IssueRec, LedgerEntry, Notif, OpnameSession, PermLevel, PurchaseOrder, PurchaseRequest,
-  Receipt, Repair, Role, RoomInfo, SparePart, Supplier, Technician, TimelineEvent, TransferRecord, TxType,
-  Warehouse, WorkOrder, d, uid,
+  Accessory, Approval, AuditEntry, BizContract, Building, CalibrationRecord, Complaint, DemandPlan, Equipment,
+  FormTemplate, Inspection, InventoryItem, IssueRec, LedgerEntry, Loan, Notif, OpnameSession, PermLevel,
+  PurchaseOrder, PurchaseRequest, Receipt, Rental, Repair, Role, RoomInfo, SparePart, Supplier, Technician,
+  TimelineEvent, TransferRecord, TxType, Warehouse, WorkOrder, d, periodKey, uid,
 } from "./types";
 
 /* ── people & partners ── */
@@ -350,6 +350,47 @@ export const NOTIFS: Notif[] = [
 
 /* ── RBAC matrix ── */
 export const PERM_MODULES = ["Dashboard & Analytics", "Equipment 360°", "Inventory & Ledger", "Gudang & Distribusi", "Stock Opname", "Pemeliharaan & Kalibrasi", "Keluhan & Perbaikan", "Procurement", "Pelaporan", "Persetujuan", "Registrasi & Transfer Aset", "Master Data", "Audit Trail", "Konfigurasi & RBAC"];
+
+/* ── Phase 3: utilization series, loan, rental, BGS/SGB, depreciation ── */
+
+export const genSeries = (util: number, seed: number): number[] => {
+  const base = (util / 100) * 168; // jam pemakaian per minggu (available 168 jam)
+  return Array.from({ length: 8 }, (_, i) => Math.max(0, Math.round(base * (0.78 + ((i * 37 + seed * 13) % 40) / 100))));
+};
+export const UTIL_SERIES: Record<string, number[]> = Object.fromEntries(
+  EQUIPMENT.map((e) => [e.id, genSeries(e.utilization, e.id.charCodeAt(3))])
+);
+
+export const LOANS: Loan[] = [
+  { id: "LN-1", code: "LOAN-2608-003", eqId: "EQ-05", toUnit: "Klinik Satelit Cempaka", borrower: "drg. Widya Paramita", requested: d(-4), due: d(10), status: "ON_LOAN", note: "USG cadangan untuk program ANC keliling; peminjaman antar-fasilitas jejaring." },
+  { id: "LN-2", code: "LOAN-2608-002", eqId: "EQ-13", toUnit: "ICU", borrower: "Ns. Dewi Lestari", requested: d(-12), due: d(-2), status: "RETURNED", note: "Pinjaman syringe pump tambahan saat okupansi ICU puncak.", returnCondition: "Fungsi normal; battery cover aus ringan — masuk daftar PM." },
+  { id: "LN-3", code: "LOAN-2607-011", eqId: "EQ-06", toUnit: "Poli Jantung", borrower: "dr. Hendra, Sp.JP", requested: d(-40), due: d(-26), status: "CLOSED", note: "EKG untuk skrining MCU massal karyawan." },
+];
+
+export const RENTALS: Rental[] = [
+  { id: "RT-1", code: "RENT-2608-001", eqId: "EQ-09", party: "RSUD Kecamatan Cibiru (jejaring)", start: d(-18), end: d(12), perDay: 1_750_000, status: "ACTIVE" },
+  { id: "RT-2", code: "RENT-2607-004", eqId: "EQ-14", party: "Klinik Kartika Medika", start: d(-60), end: d(-30), perDay: 450_000, status: "COMPLETED" },
+];
+
+export const CONTRACTS: BizContract[] = [
+  { id: "CT-1", code: "BGS-2024-001", kind: "BGS", name: "Gedung E — Onkologi (Bangun-Guna-Serah)", party: "PT Graha Medika Investama", value: 48_000_000_000, start: d(-400), until: d(2920), status: "ACTIVE", note: "Investor membangun & mengoperasikan 8 tahun, lalu serah terima. Progres konstruksi 42%." },
+  { id: "CT-2", code: "SGB-2025-002", kind: "SGB", name: "MRI Suite — Sewa-Guna-Bangun", party: "Siemens Financial Services", value: 12_500_000_000, start: d(-300), until: d(1460), status: "ACTIVE", note: "Suite + shielding disewa 5 tahun dengan opsi beli di akhir masa sewa." },
+  { id: "CT-3", code: "SVC-2607-018", kind: "SERVICE", name: "CT Service Contract Comprehensive", party: "PT GE Healthcare Indonesia", value: 480_000_000, start: d(-200), until: d(165), status: "ACTIVE", note: "Termasuk tube coverage & PM 4×/tahun." },
+  { id: "CT-4", code: "SVC-2607-021", kind: "SERVICE", name: "MRI Helium & Coldhead Agreement", party: "Siemens Healthineers", value: 310_000_000, start: d(-260), until: d(45), status: "ACTIVE", note: "Negosiasi perpanjangan berjalan — jatuh tempo 45 hari lagi (CONTRACT_EXPIRING)." },
+  { id: "CT-5", code: "RTL-2608-001", kind: "RENTAL", name: "Sewa X-Ray onsite — RSUD Kecamatan", party: "RSUD Kecamatan Cibiru", value: 52_500_000, start: d(-18), until: d(12), status: "ACTIVE", note: "30 hari × Rp 1,75 jt/hari termasuk operator & transport." },
+];
+
+/* Periode depresiasi yang sudah diposting (sebulan sekali sejak akuisisi s.d. bulan lalu) */
+export const DEPR_POSTED: Record<string, string[]> = Object.fromEntries(EQUIPMENT.map((e) => {
+  const periods: string[] = [];
+  const cur = new Date(new Date(e.acqDate).getFullYear(), new Date(e.acqDate).getMonth(), 1);
+  const thisMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+  while (cur < thisMonth) {
+    periods.push(periodKey(cur));
+    cur.setMonth(cur.getMonth() + 1);
+  }
+  return [e.id, periods];
+}));
 
 export const ROLE_PERMS: Record<Role, PermLevel[]> = {
   "Direksi": ["full", "view", "view", "view", "view", "view", "view", "view", "full", "full", "view", "view", "view", "none"],

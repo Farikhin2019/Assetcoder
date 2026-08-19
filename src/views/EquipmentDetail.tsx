@@ -13,6 +13,7 @@ const EVENT_META: Record<EventType, { tone: Tone; label: string }> = {
   SPARE_PART: { tone: "warn", label: "Spare part" }, TRANSFER: { tone: "warn", label: "Transfer" },
   COST: { tone: "neutral", label: "Cost" }, DOCUMENT: { tone: "info", label: "Document" },
   PROCUREMENT: { tone: "pine", label: "Procurement" }, ASSIGNMENT: { tone: "info", label: "Assignment" },
+  UTILIZATION: { tone: "warn", label: "Utilization" }, FINANCE: { tone: "ok", label: "Finance" },
 };
 
 export default function EquipmentDetail() {
@@ -143,7 +144,7 @@ export default function EquipmentDetail() {
           {tab === "timeline" && (
             <div>
               <div className="mb-3 flex flex-wrap gap-1.5">
-                {(["ALL", "MAINTENANCE", "CALIBRATION", "COMPLAINT", "REPAIR", "INSPECTION", "TRANSFER", "SPARE_PART", "LIFECYCLE", "ASSIGNMENT"] as const).map((f) => (
+                {(["ALL", "MAINTENANCE", "CALIBRATION", "COMPLAINT", "REPAIR", "INSPECTION", "TRANSFER", "SPARE_PART", "LIFECYCLE", "ASSIGNMENT", "UTILIZATION", "FINANCE"] as const).map((f) => (
                   <button key={f} onClick={() => setTlFilter(f as "ALL" | EventType)}
                     className={`rounded-md border px-2 py-1 font-mono text-[10px] font-bold transition ${tlFilter === f ? "border-pine-600 bg-pine-700 text-pine-50" : "border-line bg-card text-mute hover:text-ink"}`}>{f === "ALL" ? "SEMUA" : EVENT_META[f as EventType]?.label ?? f}</button>
                 ))}

@@ -18,6 +18,8 @@ export function chipFor(status: string): Tone {
     VALID: "ok", DUE_SOON: "warn", EXPIRED: "danger", FAILED: "danger", NOT_REQUIRED: "neutral",
     HIGH: "danger", CRITICAL: "danger", MEDIUM: "warn", LOW: "neutral",
     EXCELLENT: "ok", GOOD: "ok", FAIR: "warn", POOR: "danger",
+    REQUESTED: "warn", ON_LOAN: "info", RETURNED: "warn", COMPLETED: "neutral", UNUSED: "danger",
+    LOW_USAGE: "warn", BGS: "pine", SGB: "info", SERVICE: "neutral", RENTAL: "warn",
     SCHEDULED: "info", IN_PROGRESS: "info", AWAITING_VERIFICATION: "warn", CLOSED: "neutral",
     OPEN: "danger", ACKNOWLEDGED: "warn", WAITING_PART: "warn", WAITING_VENDOR: "warn", RESOLVED: "ok", VERIFIED: "ok",
     ASSESSED: "info", AWAITING_APPROVAL: "warn", APPROVED: "ok", TESTING: "warn",

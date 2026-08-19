@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useApp, itemHealth } from "../lib/store";
+import { useApp, itemHealth, utilOf } from "../lib/store";
 import { Bar, Card, Chip, Kpi, SectionHead, StatusChip, chipFor } from "../components/ui";
 import { IcBolt, IcFlag, IcGauge, IcStamp, IcWarn, IcWrench } from "../components/icons";
 import { daysUntil, fmtDateTime, fmtIDRCompact, relTime } from "../lib/types";
@@ -10,7 +10,7 @@ export default function Dashboard() {
   const stats = useMemo(() => {
     const inService = s.equipment.filter((e) => e.opStatus === "IN_SERVICE").length;
     const down = s.equipment.filter((e) => e.opStatus === "DOWN" || e.opStatus === "MAINTENANCE").length;
-    const util = Math.round(s.equipment.reduce((a, e) => a + e.utilization, 0) / s.equipment.length);
+    const util = Math.round(s.equipment.reduce((a, e) => a + utilOf(s.utilSeries, e.id, e.utilization), 0) / s.equipment.length);
     const openWo = s.workOrders.filter((w) => w.status !== "CLOSED").length;
     const overdueWo = s.workOrders.filter((w) => w.status !== "CLOSED" && daysUntil(w.scheduled) < 0).length;
     const calAction = s.equipment.filter((e) => ["DUE_SOON", "EXPIRED", "FAILED"].includes(e.calStatus)).length;
@@ -18,7 +18,7 @@ export default function Dashboard() {
     const lowStock = s.items.filter((i) => itemHealth(i) !== "ok").length;
     const stockValue = s.items.reduce((a, i) => a + i.stock * i.unitCost, 0) + s.spareParts.reduce((a, p) => a + p.stock * p.unitCost, 0);
     const pending = s.approvals.filter((a) => a.status === "PENDING").length;
-    const idle = s.equipment.filter((e) => e.utilization < 30 && e.opStatus === "IN_SERVICE").length;
+    const idle = s.equipment.filter((e) => utilOf(s.utilSeries, e.id, e.utilization) < 30 && e.opStatus === "IN_SERVICE").length;
     return { inService, down, util, openWo, overdueWo, calAction, openCmp, lowStock, stockValue, pending, idle };
   }, [s]);
 
@@ -47,7 +47,7 @@ export default function Dashboard() {
     return rows.slice(0, 9);
   }, [s, stats.pending, nav]);
 
-  const utilBars = useMemo(() => [...s.equipment].sort((a, b) => b.utilization - a.utilization).slice(0, 8), [s.equipment]);
+  const utilBars = useMemo(() => [...s.equipment].sort((a, b) => utilOf(s.utilSeries, b.id, b.utilization) - utilOf(s.utilSeries, a.id, a.utilization)).slice(0, 8), [s.equipment, s.utilSeries]);
   const feed = s.timeline.slice(0, 8);
   const ticker = s.audit.slice(0, 12);
 
@@ -96,9 +96,9 @@ export default function Dashboard() {
               <button key={e.id} onClick={() => nav("equipment-detail", e.id)} className="group block w-full text-left">
                 <div className="mb-1 flex items-center justify-between">
                   <span className="truncate text-[11.5px] font-bold text-ink group-hover:text-pine-700">{e.name}</span>
-                  <span className={`num font-mono text-[11px] font-bold ${e.utilization < 30 ? "text-danger" : e.utilization < 55 ? "text-warn" : "text-pine-700"}`}>{e.utilization}%</span>
+                  <span className={`num font-mono text-[11px] font-bold ${utilOf(s.utilSeries, e.id, e.utilization) < 30 ? "text-danger" : utilOf(s.utilSeries, e.id, e.utilization) < 55 ? "text-warn" : "text-pine-700"}`}>{utilOf(s.utilSeries, e.id, e.utilization)}%</span>
                 </div>
-                <Bar pct={e.utilization} tone={e.utilization < 30 ? "danger" : e.utilization < 55 ? "warn" : "pine"} />
+                <Bar pct={utilOf(s.utilSeries, e.id, e.utilization)} tone={utilOf(s.utilSeries, e.id, e.utilization) < 30 ? "danger" : utilOf(s.utilSeries, e.id, e.utilization) < 55 ? "warn" : "pine"} />
                 <span className="sr-only">{i}</span>
               </button>
             ))}

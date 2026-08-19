@@ -3,7 +3,8 @@
 export type View =
   | "dashboard" | "equipment" | "equipment-detail" | "inventory" | "logistics" | "opname"
   | "technical" | "complaints" | "procurement" | "reporting"
-  | "master" | "locations" | "approvals" | "audit" | "rbac";
+  | "master" | "locations" | "approvals" | "audit" | "rbac"
+  | "utilization" | "rental" | "depreciation";
 
 export type Role =
   | "Direksi" | "Pengelola Aset" | "Pengelola Inventory" | "Kepala Gudang" | "Petugas Gudang"
@@ -20,8 +21,10 @@ export type Priority = "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
 export type ComplaintStatus = "OPEN" | "ACKNOWLEDGED" | "IN_PROGRESS" | "WAITING_PART" | "WAITING_VENDOR" | "RESOLVED" | "VERIFIED" | "CLOSED";
 export type RepairStatus = "ASSESSED" | "AWAITING_APPROVAL" | "APPROVED" | "IN_PROGRESS" | "TESTING" | "CLOSED";
 export type TxType = "RECEIPT" | "TRANSFER" | "ISSUE" | "CONSUMPTION" | "RETURN" | "ADJUSTMENT" | "STOCK_OPNAME" | "EXPIRED" | "OPENING_BALANCE";
-export type EventType = "LIFECYCLE" | "MAINTENANCE" | "CALIBRATION" | "COMPLAINT" | "REPAIR" | "INSPECTION" | "SPARE_PART" | "TRANSFER" | "COST" | "DOCUMENT" | "PROCUREMENT" | "ASSIGNMENT";
-export type ApprovalType = "TRANSFER" | "ADJUSTMENT" | "REPAIR" | "PURCHASE" | "DISPOSAL";
+export type EventType = "LIFECYCLE" | "MAINTENANCE" | "CALIBRATION" | "COMPLAINT" | "REPAIR" | "INSPECTION" | "SPARE_PART" | "TRANSFER" | "COST" | "DOCUMENT" | "PROCUREMENT" | "ASSIGNMENT" | "UTILIZATION" | "FINANCE";
+export type ApprovalType = "TRANSFER" | "ADJUSTMENT" | "REPAIR" | "PURCHASE" | "DISPOSAL" | "LOAN";
+export type IdleStatus = "ACTIVE" | "LOW_USAGE" | "IDLE" | "UNUSED";
+export type LoanStatus = "REQUESTED" | "APPROVED" | "ON_LOAN" | "RETURNED" | "CLOSED" | "REJECTED";
 export type NotifKind =
   | "LOW_STOCK" | "CALIBRATION_DUE" | "CALIBRATION_EXPIRED" | "MAINTENANCE_DUE" | "MAINTENANCE_OVERDUE"
   | "COMPLAINT_CREATED" | "COMPLAINT_SLA_BREACH" | "APPROVAL_PENDING" | "STOCK_VARIANCE" | "ASSET_IDLE"
@@ -68,6 +71,20 @@ export interface TransferRecord { id: string; ref: string; eqId: string; date: s
 export interface Building { id: string; name: string; label: string; status: "PLANNED" | "ACTIVE" | "UNDER_RENOVATION" | "INACTIVE"; floors: string[]; year: number; note: string; }
 export interface RoomInfo { id: string; building: string; floor: string; name: string; unit: string; }
 export interface Warehouse { id: string; name: string; code: string; keeper: string; zones: string[]; capacityLoc: number; usedLoc: number; desc: string; }
+
+/* ── Phase 3: utilization, rental/loan, BGS/SGB, contracts, depreciation ── */
+
+export interface Loan { id: string; code: string; eqId: string; toUnit: string; borrower: string; requested: string; due: string; status: LoanStatus; note: string; returnCondition?: string; }
+export interface Rental { id: string; code: string; eqId: string; party: string; start: string; end: string; perDay: number; status: "ACTIVE" | "COMPLETED"; }
+export interface BizContract { id: string; code: string; kind: "BGS" | "SGB" | "SERVICE" | "RENTAL"; name: string; party: string; value: number; start: string; until: string; status: "ACTIVE" | "DRAFT" | "EXPIRED"; note: string; }
+export interface DepreciationTx { id: string; period: string; eqId: string; amount: number; accumAfter: number; nbvAfter: number; }
+
+export const DEPR_SALVAGE = 0.1;
+export const DEPR_LIFE_YEARS: Record<string, number> = { Imaging: 8, "Life Support": 6, Monitoring: 5, Laboratorium: 6, Sterilisasi: 7, Infusion: 5, Poliklinik: 5 };
+export const lifeYears = (category: string) => DEPR_LIFE_YEARS[category] ?? 5;
+export const monthlyDep = (acqCost: number, category: string) => (acqCost * (1 - DEPR_SALVAGE)) / (lifeYears(category) * 12);
+export const periodKey = (dt: Date) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}`;
+export const idleStatusOf = (pct: number): IdleStatus => (pct >= 65 ? "ACTIVE" : pct >= 40 ? "LOW_USAGE" : pct >= 15 ? "IDLE" : "UNUSED");
 
 export interface AuditEntry { id: string; date: string; actor: string; role: string; action: string; entity: string; entityId: string; reason?: string; delta?: string; }
 export interface Notif { id: string; kind: NotifKind; msg: string; refId: string; date: string; read: boolean; }
