@@ -7,7 +7,7 @@ export type View =
   | "utilization" | "rental" | "depreciation" | "intelligence"
   | "mobile" | "disposal" | "integrations"
   | "notifications" | "assetledger" | "config"
-  | "command" | "compliance";
+  | "command" | "compliance" | "formbuilder";
 
 export type Role =
   | "Direksi" | "Pengelola Aset" | "Pengelola Inventory" | "Kepala Gudang" | "Petugas Gudang"
@@ -54,7 +54,8 @@ export interface InventoryItem { sku: string; name: string; category: string; uo
 export interface LedgerEntry { id: string; date: string; sku: string; type: TxType; qty: number; balance: number; actor: string; ref: string; reason?: string; }
 export interface SparePart { id: string; name: string; code: string; stock: number; min: number; unit: string; unitCost: number; eqIds: string[]; }
 
-export interface FormField { id: string; type: "text" | "number" | "checkbox" | "radio" | "select" | "date" | "measurement" | "passfail" | "instruction"; label: string; options?: string[]; unit?: string; required?: boolean; }
+export type FormFieldType = "text" | "number" | "checkbox" | "radio" | "select" | "date" | "measurement" | "passfail" | "instruction" | "photo" | "signature" | "attachment";
+export interface FormField { id: string; type: FormFieldType; label: string; options?: string[]; unit?: string; required?: boolean; }
 export interface FormTemplate { id: string; name: string; fields: FormField[]; }
 export interface FormResult { id: string; woId: string; templateId: string; values: Record<string, string>; actor: string; date: string; }
 

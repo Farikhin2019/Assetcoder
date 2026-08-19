@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useApp } from "../lib/store";
 import { BtnGhost, BtnPrimary, Chip, Input, Label, Modal, QRGlyph, Select, TextArea } from "./ui";
-import { IcCheck, IcForm, IcGauge, IcPlus, IcShield } from "./icons";
+import { IcCheck, IcDoc, IcForm, IcGauge, IcPlus, IcScan, IcShield } from "./icons";
 import { BUILDINGS, DEST_UNITS } from "../lib/data";
 import { fmtDate, fmtIDR } from "../lib/types";
 
@@ -141,6 +141,21 @@ export function WOCompleteModal({ woId, onClose }: { woId: string | null; onClos
                     )}
                     {fld.type === "select" && <Select value={values[fld.id] ?? ""} onChange={(e) => setVal(fld.id, e.target.value)}><option value="">— pilih —</option>{(fld.options ?? []).map((o) => <option key={o}>{o}</option>)}</Select>}
                     {fld.type === "date" && <Input type="date" value={values[fld.id] ?? ""} onChange={(e) => setVal(fld.id, e.target.value)} />}
+                    {fld.type === "photo" && (
+                      <button onClick={() => setVal(fld.id, values[fld.id] ? "" : `IMG_${Date.now().toString().slice(-6)}.jpg`)}
+                        className={`flex w-full items-center justify-center gap-2 rounded-md border border-dashed px-3 py-3 font-mono text-[11px] font-bold transition ${values[fld.id] ? "border-pine-500 bg-pine-50 text-pine-700" : "border-line2 bg-canvas/60 text-mute hover:border-pine-500/60 hover:text-pine-700"}`}>
+                        <IcScan size={14} /> {values[fld.id] ? `Terfoto: ${values[fld.id]} — klik untuk hapus` : "Ambil foto (kamera field)"}
+                      </button>
+                    )}
+                    {fld.type === "signature" && (
+                      <Input value={values[fld.id] ?? ""} onChange={(e) => setVal(fld.id, e.target.value)} placeholder="Nama penandatangan / NIP (tanda tangan elektronik)" />
+                    )}
+                    {fld.type === "attachment" && (
+                      <button onClick={() => setVal(fld.id, values[fld.id] ? "" : `dok_${Date.now().toString().slice(-6)}.pdf`)}
+                        className={`flex w-full items-center justify-center gap-2 rounded-md border border-dashed px-3 py-3 font-mono text-[11px] font-bold transition ${values[fld.id] ? "border-info/60 bg-infobg text-info" : "border-line2 bg-canvas/60 text-mute hover:border-info/60 hover:text-info"}`}>
+                        <IcDoc size={14} /> {values[fld.id] ? `Terlampir: ${values[fld.id]} — klik untuk hapus` : "Lampirkan dokumen"}
+                      </button>
+                    )}
                   </>
                 )}
               </div>

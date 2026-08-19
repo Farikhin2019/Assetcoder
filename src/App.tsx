@@ -35,6 +35,7 @@ import AssetLedger from "./views/AssetLedger";
 import Config from "./views/Config";
 import Command from "./views/Command";
 import ComplianceView from "./views/Compliance";
+import FormBuilder from "./views/FormBuilder";
 
 const TITLES: Record<View, string> = {
   dashboard: "Dashboard", equipment: "Equipment Registry", "equipment-detail": "Equipment 360°",
@@ -47,6 +48,7 @@ const TITLES: Record<View, string> = {
   mobile: "Mobile Field Ops (PWA)", disposal: "Retirement & Disposal", integrations: "Integration Hub",
   notifications: "Pusat Notifikasi", assetledger: "Buku Aset (Fixed Assets)", config: "Konfigurasi Sistem",
   command: "Executive Command Center", compliance: "Security & Compliance",
+  formbuilder: "Form Builder",
 };
 
 function Clock() {
@@ -176,6 +178,7 @@ function Shell() {
     ]},
     { group: "Teknis", items: [
       { id: "technical", label: "Maintenance & Cal.", icon: <IcWrench size={15} /> },
+      { id: "formbuilder", label: "Form Builder", icon: <IcForm size={15} /> },
       { id: "complaints", label: "Complaints & Repairs", icon: <IcFlag size={15} /> },
       { id: "procurement", label: "Procurement", icon: <IcCart size={15} /> },
     ]},
@@ -354,6 +357,7 @@ function Shell() {
             {s.view === "config" && <Config />}
             {s.view === "command" && <Command />}
             {s.view === "compliance" && <ComplianceView />}
+            {s.view === "formbuilder" && <FormBuilder />}
           </div>
           <footer className="mx-auto flex max-w-[1240px] flex-wrap items-center justify-between gap-2 px-4 pb-5 lg:px-6">
             <p className="font-mono text-[10px] text-mute">SIMASET v7.0 · PRD 18 Aug 2026 · Phase 1–7 complete · Command Center · Security & Compliance · multi-branch ready</p>

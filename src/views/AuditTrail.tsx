@@ -43,6 +43,44 @@ export default function AuditTrail() {
         </div>
       </Card>
 
+      {/* statistik ringkas */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {[
+          { l: "Total entri", v: s.audit.length, sub: "append-only, tak terhapus" },
+          { l: "Aktor unik", v: new Set(s.audit.map((a) => a.actor)).size, sub: "termasuk scheduler (system)" },
+          { l: "Entitas tersentuh", v: entities.length, sub: "asset · inventory · approval · …" },
+          { l: "24 jam terakhir", v: s.audit.filter((a) => Date.now() - new Date(a.date).getTime() < 864e5).length, sub: "aktivitas terkini" },
+        ].map((k, i) => (
+          <Card key={k.l} className="row-in p-3.5" >
+            <div style={{ animationDelay: `${i * 60}ms` }}>
+              <p className="font-mono text-[9.5px] font-semibold uppercase tracking-[0.12em] text-mute">{k.l}</p>
+              <p className="num mt-1 font-display text-[24px] font-black leading-none text-ink">{k.v}</p>
+              <p className="mt-1 font-mono text-[9.5px] text-mute">{k.sub}</p>
+            </div>
+          </Card>
+        ))}
+      </div>
+
+      {/* distribusi entitas teratas */}
+      <Card className="p-4">
+        <p className="mb-2.5 font-mono text-[10px] font-bold uppercase tracking-[0.12em] text-mute">Distribusi entitas teratas</p>
+        <div className="space-y-2">
+          {(() => {
+            const counts = entities.map((e) => ({ e, n: s.audit.filter((a) => a.entity === e).length })).sort((a, b) => b.n - a.n).slice(0, 6);
+            const max = Math.max(...counts.map((c) => c.n), 1);
+            return counts.map((c) => (
+              <div key={c.e} className="flex items-center gap-3">
+                <button onClick={() => setEntity(c.e)} className="w-44 shrink-0 truncate text-left font-mono text-[11px] font-semibold text-ink2 transition hover:text-pine-700">{c.e}</button>
+                <div className="h-3.5 flex-1 overflow-hidden rounded-sm bg-moss">
+                  <div className="bar-fill h-full rounded-sm bg-pine-500/80" style={{ width: `${(c.n / max) * 100}%` }} />
+                </div>
+                <span className="num w-8 shrink-0 text-right font-mono text-[11px] font-bold text-ink">{c.n}</span>
+              </div>
+            ));
+          })()}
+        </div>
+      </Card>
+
       <Card className="overflow-x-auto">
         {rows.length === 0 ? <EmptyState title="Tidak ada entri cocok" sub="Ubah filter pencarian." /> : (
           <table className="w-full min-w-[980px] text-left">

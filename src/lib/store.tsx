@@ -4,8 +4,8 @@ import {
   DepreciationTx, DisposalRecord, Equipment, FormResult, Inspection, InventoryItem, isITSku, LedgerEntry, Loan,
   mkPendingStages, MobileTask, Notif, NotifChannel, NotifKind, OpnameSession, PRLine, Priority, PurchaseOrder,
   Rental, Repair, Role, ROLE_USER, SLA_BY_PRIORITY, StageDecision, SyncEntry, SystemConfig, TimelineEvent, Toast,
-  TransferRecord, TxType, View, WorkOrder, d, daysUntil, fmtIDR, lifeYears, lineActiveStage, lineState, lineTotal,
-  monthlyDep, periodKey, prStageLabels, prStageRole, prState, uid,
+  TransferRecord, TxType, View, WorkOrder, FormTemplate, d, daysUntil, fmtIDR, lifeYears, lineActiveStage, lineState,
+  lineTotal, monthlyDep, periodKey, prStageLabels, prStageRole, prState, uid,
 } from "./types";
 import {
   ACCESSORIES, APPROVALS, AUDIT, BUILDINGS, CALIBRATIONS, COMPLAINTS, CONFIG_DEFAULT, CONNECTORS, CONTRACTS,
@@ -18,7 +18,7 @@ export interface AppState {
   view: View; eqId: string | null; role: Role; searchQuery: string;
   equipment: Equipment[]; timeline: TimelineEvent[]; items: InventoryItem[]; ledger: LedgerEntry[];
   spareParts: typeof SPARE_PARTS; workOrders: WorkOrder[]; calibrations: typeof CALIBRATIONS;
-  inspections: Inspection[]; formTemplates: typeof FORM_TEMPLATES; formResults: FormResult[];
+  inspections: Inspection[]; formTemplates: FormTemplate[]; formResults: FormResult[];
   complaints: Complaint[]; repairs: Repair[]; approvals: typeof APPROVALS;
   demandPlans: typeof DEMAND_PLANS; purchaseRequests: typeof PURCHASE_REQUESTS; purchaseOrders: PurchaseOrder[];
   receipts: typeof RECEIPTS; issues: typeof ISSUES; opnames: OpnameSession[]; transfers: TransferRecord[];
@@ -106,7 +106,9 @@ type Act =
   | { t: "CFG_MATRIX"; matrix: ApprovalMatrix }
   | { t: "NOTIF_READ"; id: string }
   | { t: "NOTIF_ALL_READ" }
-  | { t: "NOTIF_TEST"; kind: NotifKind; channel: NotifChannel };
+  | { t: "NOTIF_TEST"; kind: NotifKind; channel: NotifChannel }
+  | { t: "FORM_SAVE"; template: FormTemplate }
+  | { t: "FORM_DELETE"; id: string };
 
 const now = () => new Date().toISOString();
 const mkAudit = (actor: string, role: string, action: string, entity: string, entityId: string, reason?: string, delta?: string): AuditEntry => ({ id: "AUD-" + uid(), date: now(), actor, role, action, entity, entityId, reason, delta });
@@ -900,6 +902,34 @@ function reducer(s: AppState, a: Act): AppState {
       };
     }
 
+    /* ── Form builder (maintenance template authoring) ── */
+    case "FORM_SAVE": {
+      const exists = s.formTemplates.some((t) => t.id === a.template.id);
+      const templates = exists
+        ? s.formTemplates.map((t) => (t.id === a.template.id ? a.template : t))
+        : [...s.formTemplates, a.template];
+      return {
+        ...s,
+        formTemplates: templates,
+        audit: [mkAudit(me.name, s.role, exists ? "FORM.UPDATE" : "FORM.CREATE", "maintenance_template", a.template.id, `${a.template.fields.length} field`, a.template.name), ...s.audit],
+        toasts: [...s.toasts, okToast(`Template "${a.template.name}" ${exists ? "diperbarui" : "dibuat"} (${a.template.fields.length} field)`)],
+      };
+    }
+
+    case "FORM_DELETE": {
+      const tpl = s.formTemplates.find((t) => t.id === a.id);
+      const inUse = s.workOrders.some((w) => w.templateId === a.id);
+      if (inUse) {
+        return { ...s, toasts: [...s.toasts, okToast("Template dipakai work order aktif — tidak bisa dihapus", "err")] };
+      }
+      return {
+        ...s,
+        formTemplates: s.formTemplates.filter((t) => t.id !== a.id),
+        audit: [mkAudit(me.name, s.role, "FORM.DELETE", "maintenance_template", a.id, undefined, tpl?.name), ...s.audit],
+        toasts: [...s.toasts, okToast(`Template "${tpl?.name}" dihapus`, "warn")],
+      };
+    }
+
     default: return s;
   }
 }
@@ -951,6 +981,8 @@ interface Api {
   cfgMatrix: (matrix: ApprovalMatrix) => void;
   markNotif: (id: string) => void; markAllNotif: () => void;
   testNotify: (kind: NotifKind, channel: NotifChannel) => void;
+  saveForm: (template: FormTemplate) => void;
+  deleteForm: (id: string) => void;
 }
 
 const Ctx = createContext<Api | null>(null);
@@ -1019,6 +1051,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     markNotif: (id) => dispatch({ t: "NOTIF_READ", id }),
     markAllNotif: () => dispatch({ t: "NOTIF_ALL_READ" }),
     testNotify: (kind, channel) => dispatch({ t: "NOTIF_TEST", kind, channel }),
+    saveForm: (template) => dispatch({ t: "FORM_SAVE", template }),
+    deleteForm: (id) => dispatch({ t: "FORM_DELETE", id }),
   }), [s]);
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>;
 }
