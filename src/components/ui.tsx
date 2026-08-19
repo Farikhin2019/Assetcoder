@@ -159,7 +159,7 @@ export function Tabs({ tabs, active, onChange, counts }: { tabs: { id: string; l
 export function ToastHost() {
   const { s, dropToast } = useApp();
   return (
-    <div className="pointer-events-none fixed bottom-5 right-5 z-[70] flex w-[360px] max-w-[calc(100vw-2rem)] flex-col gap-2">
+    <div className="pointer-events-none fixed bottom-[calc(4.75rem+env(safe-area-inset-bottom))] right-4 left-4 z-[70] flex flex-col gap-2 sm:left-auto sm:bottom-5 sm:right-5 sm:w-[360px]">
       {s.toasts.slice(-4).map((t) => <ToastItem key={t.id} id={t.id} msg={t.msg} kind={t.kind} drop={dropToast} />)}
     </div>
   );
@@ -229,7 +229,7 @@ export function Kpi({ label, value, unit, delta, tone = "pine", spark, onClick }
           </p>
           {delta && <p className={`mt-1 font-mono text-[10.5px] font-medium ${deltaTone}`}>{delta}</p>}
         </div>
-        <div className="opacity-80 transition group-hover:opacity-100"><Sparkline data={spark} tone={tone} /></div>
+        <div className="hidden shrink-0 opacity-80 transition group-hover:opacity-100 sm:block"><Sparkline data={spark} tone={tone} /></div>
       </div>
       <div className={`absolute inset-x-0 bottom-0 h-[3px] ${tone === "danger" ? "bg-danger/70" : tone === "warn" ? "bg-warnhi/70" : tone === "info" ? "bg-info/70" : "bg-pine-500/70"} origin-left scale-x-0 transition-transform duration-300 group-hover:scale-x-100`} />
     </button>

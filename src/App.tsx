@@ -112,7 +112,7 @@ function NotifBell() {
         )}
       </button>
       {open && (
-        <div className="modal-in absolute right-0 z-40 mt-2 w-[380px] max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border border-line bg-paper shadow-2xl">
+        <div className="modal-in fixed inset-x-3 top-14 z-40 sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:w-[380px] overflow-hidden rounded-lg border border-line bg-paper shadow-2xl">
           <div className="flex items-center justify-between border-b border-line bg-canvas/60 px-3.5 py-2.5">
             <p className="font-display text-[13px] font-extrabold text-ink">Notifications <span className="font-mono text-[10.5px] font-semibold text-mute">· {unread} unread</span></p>
             <button onClick={markNotifsRead} className="flex items-center gap-1 font-mono text-[10.5px] font-bold text-pine-600 hover:underline"><IcCheck size={11} /> tandai dibaca</button>
@@ -145,6 +145,7 @@ function Shell() {
   const { s, nav, setRole, search } = useApp();
   const [roleOpen, setRoleOpen] = useState(false);
   const [regOpen, setRegOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
   const pending = s.approvals.filter((a) => a.status === "PENDING").length;
   const pendingAnomalies = anomalies(s).length;
@@ -293,13 +294,13 @@ function Shell() {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="z-30 flex items-center gap-3 border-b border-line bg-paper/90 px-4 py-2.5 backdrop-blur">
+        <header className="z-30 flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-line bg-paper/90 px-4 py-2.5 backdrop-blur">
           <div className="min-w-0">
             <p className="hidden font-mono text-[9px] font-bold uppercase tracking-[0.18em] text-mute sm:block">SIMASET / RS Harapan Medika</p>
             <h2 className="truncate font-display text-[15px] font-black tracking-tight text-ink">{TITLES[s.view]}</h2>
           </div>
 
-          <div className="relative ml-auto w-full max-w-[300px]">
+          <div className="relative order-last w-full min-w-0 sm:order-none sm:ml-auto sm:w-auto sm:max-w-[300px] sm:flex-1">
             <IcSearch size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-mute" />
             <input ref={searchRef} value={s.searchQuery} onChange={(e) => search(e.target.value)}
               placeholder="Cari aset, kode, serial…  ( / )"
@@ -323,18 +324,10 @@ function Shell() {
           </div>
         </header>
 
-        {/* mobile nav */}
-        <div className="flex gap-1 overflow-x-auto border-b border-line bg-paper px-3 py-2 md:hidden">
-          {NAV.flatMap((g) => g.items).map((it) => (
-            <button key={it.id} onClick={() => nav(it.id)} className={`flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 font-display text-[11.5px] font-bold transition ${active === it.id ? "bg-pine-700 text-pine-50" : "bg-moss text-ink2"}`}>
-              {it.icon}{it.label}
-              {it.badge ? <span className="rounded bg-warnhi px-1 font-mono text-[9px] font-bold text-pine-950">{it.badge}</span> : null}
-            </button>
-          ))}
-        </div>
+
 
         <main className="ops-bg flex-1 overflow-y-auto">
-          <div className="mx-auto max-w-[1240px] p-4 lg:p-6" key={s.view + (s.eqId ?? "")}>
+          <div className="mx-auto max-w-[1240px] p-4 pb-28 sm:pb-6 lg:p-6 lg:pb-8" key={s.view + (s.eqId ?? "")}>
             {s.view === "dashboard" && <Dashboard />}
             {s.view === "equipment" && <EquipmentList />}
             {s.view === "equipment-detail" && <EquipmentDetail />}
@@ -372,6 +365,77 @@ function Shell() {
           </footer>
         </main>
       </div>
+
+      {/* ── mobile bottom tab bar ── */}
+      <nav className="safe-bottom fixed inset-x-0 bottom-0 z-40 border-t border-pine-800 bg-pine-900/95 backdrop-blur-md md:hidden">
+        <div className="grid grid-cols-5">
+          {[
+            { id: "command" as View | "MORE", label: "Command", icon: <IcGauge size={18} /> },
+            { id: "dashboard" as View | "MORE", label: "Pantau", icon: <IcPulse size={18} /> },
+            { id: "equipment" as View | "MORE", label: "Aset", icon: <IcScan size={18} /> },
+            { id: "approvals" as View | "MORE", label: "Setuju", icon: <IcStamp size={18} />, badge: pending },
+            { id: "MORE" as View | "MORE", label: "Lainnya", icon: <IcLayers size={18} /> },
+          ].map((t) => {
+            const isMore = t.id === "MORE";
+            const isActive = isMore ? !["command", "dashboard", "equipment", "approvals"].includes(s.view) : s.view === t.id || (t.id === "equipment" && s.view === "equipment-detail");
+            return (
+              <button key={t.id} onClick={() => (isMore ? setMenuOpen(true) : nav(t.id as View))}
+                className={`tap-scale relative flex flex-col items-center gap-0.5 py-2 transition ${isActive ? "text-warnhi" : "text-pine-100/60"}`}>
+                {isActive && <span className="absolute top-0 h-0.5 w-8 rounded-b bg-warnhi" />}
+                {t.icon}
+                <span className="font-display text-[9.5px] font-bold tracking-tight">{t.label}</span>
+                {!!t.badge && t.badge > 0 && (
+                  <span className="absolute right-1/2 top-1 -mr-4 rounded-full bg-warnhi px-1 font-mono text-[8.5px] font-bold leading-[13px] text-pine-950">{t.badge}</span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </nav>
+
+      {/* ── mobile "semua modul" sheet ── */}
+      {menuOpen && (
+        <div className="fixed inset-0 z-50 md:hidden" onClick={() => setMenuOpen(false)}>
+          <div className="fade-in absolute inset-0 bg-pine-950/60 backdrop-blur-[2px]" />
+          <div className="sheet-up safe-bottom absolute inset-x-0 bottom-0 max-h-[86vh] overflow-y-auto rounded-t-2xl border-t border-line bg-paper shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="sticky top-0 z-10 border-b border-line bg-paper/95 px-4 pb-2 pt-2.5 backdrop-blur">
+              <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-line2" />
+              <div className="flex items-center justify-between">
+                <p className="font-display text-[15px] font-black tracking-tight text-ink">Semua Modul</p>
+                <button onClick={() => setMenuOpen(false)} className="rounded-md p-1.5 text-mute transition hover:bg-moss hover:text-ink"><IcClose size={16} /></button>
+              </div>
+              <div className="mt-2.5 flex gap-2 overflow-x-auto pb-1">
+                {ROLES.map((r) => (
+                  <button key={r} onClick={() => setRole(r)}
+                    className={`shrink-0 rounded-full border px-3 py-1.5 font-display text-[11px] font-bold transition ${s.role === r ? "border-pine-600 bg-pine-700 text-pine-50" : "border-line bg-card text-ink2"}`}>{r}</button>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-4 px-4 py-4">
+              <button onClick={() => { setMenuOpen(false); setRegOpen(true); }}
+                className="tap-scale flex w-full items-center justify-center gap-1.5 rounded-lg bg-pine-700 py-3 font-display text-[13px] font-bold text-pine-50 active:bg-pine-800">
+                <IcPlus size={14} /> Registrasi Aset Baru
+              </button>
+              {NAV.map((g) => (
+                <div key={g.group}>
+                  <p className="mb-1.5 font-mono text-[9px] font-bold uppercase tracking-[0.16em] text-mute">{g.group}</p>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {g.items.map((it) => (
+                      <button key={it.id} onClick={() => { nav(it.id); setMenuOpen(false); }}
+                        className={`tap-scale flex items-center gap-2 rounded-lg border px-2.5 py-2.5 text-left transition ${s.view === it.id ? "border-pine-500/60 bg-pine-50 text-pine-700" : "border-line bg-card text-ink2"}`}>
+                        <span className={s.view === it.id ? "text-pine-600" : "text-mute"}>{it.icon}</span>
+                        <span className="min-w-0 flex-1 truncate font-display text-[11.5px] font-bold">{it.label}</span>
+                        {!!it.badge && it.badge > 0 && <span className="rounded bg-warnhi px-1 font-mono text-[9px] font-bold text-pine-950">{it.badge}</span>}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              <p className="pt-1 text-center font-mono text-[9.5px] text-mute">SIMASET v7.0 · sesi: {s.role}</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <ToastHost />
       <RegisterModal open={regOpen} onClose={() => setRegOpen(false)} />
