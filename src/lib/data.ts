@@ -1,8 +1,9 @@
 import {
-  Accessory, Approval, AuditEntry, BizContract, Building, CalibrationRecord, Complaint, DemandPlan, Equipment,
-  FormTemplate, Inspection, InventoryItem, IssueRec, LedgerEntry, Loan, Notif, OpnameSession, PermLevel,
-  PurchaseOrder, PurchaseRequest, Receipt, Rental, Repair, Role, RoomInfo, SparePart, Supplier, Technician,
-  TimelineEvent, TransferRecord, TxType, Warehouse, WorkOrder, d, periodKey, uid,
+  Accessory, Approval, AuditEntry, BizContract, Building, CalibrationRecord, Complaint, Connector, DemandPlan,
+  DisposalRecord, Equipment, FormTemplate, Inspection, InventoryItem, IssueRec, LedgerEntry, Loan, MobileTask,
+  Notif, OpnameSession, PermLevel, PurchaseOrder, PurchaseRequest, Receipt, Rental, Repair, Role, RoomInfo,
+  SparePart, Supplier, SyncEntry, Technician, TimelineEvent, TransferRecord, TxType, Warehouse, WorkOrder,
+  d, periodKey, uid,
 } from "./types";
 
 /* ── people & partners ── */
@@ -41,6 +42,8 @@ const RAW_EQUIPMENT: EqSeed[] = [
   { id: "EQ-12", code: "AST-RS-2026-000012", name: "Hemodialisa DBB-EXA", category: "Life Support", brand: "Nikkiso", model: "DBB-EXA Essencia", serial: "NK-HD-18230", manufacturer: "Nikkiso Co", prodYear: 2020, acqDate: d(-700), acqCost: 420_000_000, supplierId: "S-03", warrantyUntil: d(-335), building: "Gedung B", floor: "Lantai 2", room: "HD · Station 5", unit: "Unit Hemodialisa", custodian: "Ns. Yuli Astuti", pic: "Fajar Nugroho", condition: "FAIR", opStatus: "IN_SERVICE", risk: "HIGH", criticality: "CRITICAL", calRequired: true, calStatus: "DUE_SOON", calLast: d(-352), calDue: d(13), maintStrategy: "PREVENTIVE", lastMaint: d(-18), nextMaint: d(12), lifecycle: 6, utilization: 69, mtbfHours: 510 },
   { id: "EQ-13", code: "AST-RS-2026-000013", name: "Syringe Pump SP-7", category: "Infusion", brand: "Terumo", model: "Terufusion SP-7", serial: "TM-SP-72014", manufacturer: "Terumo Corp", prodYear: 2024, acqDate: d(-90), acqCost: 38_500_000, supplierId: "S-03", warrantyUntil: d(640), building: "Gedung D", floor: "Lantai 2", room: "ICU Bed 02", unit: "Instalasi ICU", custodian: "Ns. Dewi Lestari", pic: "Agus Firmansyah", condition: "EXCELLENT", opStatus: "IN_SERVICE", risk: "LOW", criticality: "MEDIUM", calRequired: true, calStatus: "VALID", calLast: d(-80), calDue: d(285), maintStrategy: "PREVENTIVE", lastMaint: d(-20), nextMaint: d(70), lifecycle: 6, utilization: 54, mtbfHours: 1600 },
   { id: "EQ-14", code: "AST-RS-2026-000014", name: "Dental Unit", category: "Poliklinik", brand: " Belmont", model: "Clesta II", serial: "BL-DU-50182", manufacturer: "Belmont Takara", prodYear: 2017, acqDate: d(-1200), acqCost: 245_000_000, supplierId: "S-03", warrantyUntil: d(-835), building: "Gedung B", floor: "Lantai 1", room: "Poli Gigi 1", unit: "Poliklinik Gigi", custodian: "drg. Fani Rahma", pic: "Fajar Nugroho", condition: "FAIR", opStatus: "IN_SERVICE", risk: "LOW", criticality: "LOW", calRequired: false, calStatus: "NOT_REQUIRED", calLast: null, calDue: null, maintStrategy: "CORRECTIVE", lastMaint: d(-200), nextMaint: d(60), lifecycle: 6, utilization: 31, mtbfHours: 460 },
+  { id: "EQ-15", code: "AST-RS-2026-000015", name: "Infant Warmer (2014)", category: "Life Support", brand: "GE Healthcare", model: "Lullaby Warmer", serial: "GE-IW-10427", manufacturer: "GE Healthcare", prodYear: 2014, acqDate: d(-4300), acqCost: 85_000_000, supplierId: "S-01", warrantyUntil: d(-3900), building: "Gedung C", floor: "Lantai 2", room: "Gudang Aset Non-Aktif", unit: "Instalasi Perinatologi", custodian: "Rina Kusuma, S.T.", pic: "Agus Firmansyah", condition: "POOR", opStatus: "RETIRED", risk: "LOW", criticality: "LOW", calRequired: false, calStatus: "NOT_REQUIRED", calLast: null, calDue: null, maintStrategy: "CORRECTIVE", lastMaint: d(-900), nextMaint: d(9999), lifecycle: 7, utilization: 0, mtbfHours: 120 },
+  { id: "EQ-16", code: "AST-RS-2026-000016", name: "EKG 3 Kanal (2013)", category: "Monitoring", brand: "Nihon Kohden", model: "ECG-2530", serial: "NK-EK-08113", manufacturer: "Nihon Kohden", prodYear: 2013, acqDate: d(-4700), acqCost: 42_000_000, supplierId: "S-03", warrantyUntil: d(-4300), building: "Gedung C", floor: "Lantai 2", room: "Gudang Aset Non-Aktif", unit: "Instalasi IGD", custodian: "Rina Kusuma, S.T.", pic: "Fajar Nugroho", condition: "POOR", opStatus: "DISPOSED", risk: "LOW", criticality: "LOW", calRequired: false, calStatus: "NOT_REQUIRED", calLast: null, calDue: null, maintStrategy: "CORRECTIVE", lastMaint: d(-1400), nextMaint: d(9999), lifecycle: 8, utilization: 0, mtbfHours: 90 },
 ];
 export const EQUIPMENT: Equipment[] = RAW_EQUIPMENT.map(({ docs, ...e }) => ({ ...e, docs: docs ?? [] }));
 
@@ -391,6 +394,36 @@ export const DEPR_POSTED: Record<string, string[]> = Object.fromEntries(EQUIPMEN
   }
   return [e.id, periods];
 }));
+
+/* ── Phase 5: disposal, integrations, mobile field ops ── */
+
+export const DISPOSALS: DisposalRecord[] = [
+  { id: "DSP-1", code: "DSP-2606-002", eqId: "EQ-16", date: d(-45), method: "PEMUSNAHAN", residual: 0, proceeds: 0, approver: "dr. Hartono Wibowo", note: "EKG 3 kanal rusak total (PSU & mainboard), biaya perbaikan > 70% nilai buku — dimusnahkan sesuai BA pemusnahan & disaksikan auditor." },
+];
+
+export const CONNECTORS: Connector[] = [
+  { id: "CN-1", name: "SIMRS Bridge", target: "SIMRS", status: "CONNECTED", p95: 180, lastSync: d(0, 9), evPerMin: 22, retries: 0, desc: "Sinkron pasien, jadwal & billing dua arah." },
+  { id: "CN-2", name: "Finance & Accounting", target: "Finance/Accounting", status: "CONNECTED", p95: 240, lastSync: d(0, 8), evPerMin: 9, retries: 0, desc: "Jurnal depresiasi, pengadaan & disposal (GL posting)." },
+  { id: "CN-3", name: "HRIS", target: "HR", status: "DEGRADED", p95: 610, lastSync: d(-1, 22), evPerMin: 2, retries: 3, desc: "Data custodian & petugas — p95 di atas SLA 500ms." },
+  { id: "CN-4", name: "EMR Gateway", target: "EMR", status: "CONNECTED", p95: 320, lastSync: d(0, 9), evPerMin: 14, retries: 0, desc: "Kaitan aset ke rekam medis (equipment used per encounter)." },
+  { id: "CN-5", name: "Supplier Portal", target: "Supplier", status: "CONNECTED", p95: 290, lastSync: d(0, 7), evPerMin: 3, retries: 1, desc: "PO, GRN & katalog harga ke principal/distributor." },
+  { id: "CN-6", name: "Payment Gateway", target: "Payment", status: "OFFLINE", p95: 0, lastSync: d(-2, 15), evPerMin: 0, retries: 7, desc: "Retri sewa & BGS — endpoint tidak merespons, retry antrian menumpuk." },
+  { id: "CN-7", name: "Notification Hub", target: "Notification", status: "CONNECTED", p95: 150, lastSync: d(0, 9), evPerMin: 31, retries: 0, desc: "In-app, email, WhatsApp & push (multi-channel)." },
+  { id: "CN-8", name: "ASPAK Kemenkes", target: "Government Reporting", status: "DEGRADED", p95: 540, lastSync: d(-1, 17), evPerMin: 1, retries: 2, desc: "Pelaporan alat kesehatan ke Kemenkes — rate-limit API pusat." },
+];
+
+export const MOBILE_TASKS: MobileTask[] = [
+  { id: "MT-0", code: "FLD-2608-011", eqId: "EQ-13", kind: "INSPECTION", due: d(-2), status: "SYNCED" },
+  { id: "MT-1", code: "FLD-2608-012", eqId: "EQ-12", kind: "INSPECTION", due: d(1), status: "ASSIGNED" },
+  { id: "MT-2", code: "FLD-2608-013", eqId: "EQ-13", kind: "PM", woId: "WO-3", due: d(2), status: "ASSIGNED" },
+  { id: "MT-3", code: "FLD-2608-014", eqId: "EQ-01", kind: "CALIBRATION", due: d(3), status: "ASSIGNED" },
+  { id: "MT-4", code: "FLD-2608-015", eqId: "EQ-08", kind: "INSPECTION", due: d(0), status: "ASSIGNED" },
+];
+
+export const SYNC_LOG: SyncEntry[] = [
+  { id: "SY-1", ts: d(-2, 16), taskCode: "FLD-2608-011", event: "asset.inspected", correlationId: "corr-" + uid().toLowerCase(), status: "OK", note: "Syringe Pump SP-7 — inspeksi harian PASS" },
+  { id: "SY-2", ts: d(-2, 16), taskCode: "FLD-2608-011", event: "inventory.consumed", correlationId: "corr-" + uid().toLowerCase(), status: "OK", note: "Alcohol swab ×2 terpakai saat inspeksi" },
+];
 
 export const ROLE_PERMS: Record<Role, PermLevel[]> = {
   "Direksi": ["full", "view", "view", "view", "view", "view", "view", "view", "full", "full", "view", "view", "view", "none"],

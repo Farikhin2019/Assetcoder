@@ -1,15 +1,15 @@
 import React, { createContext, useContext, useMemo, useReducer } from "react";
 import {
-  ADJ_APPROVAL_THRESHOLD, Accessory, AuditEntry, BizContract, Complaint, DEPR_SALVAGE, DepreciationTx, Equipment,
-  FormResult, Inspection, InventoryItem, LedgerEntry, Loan, Notif, NotifKind, OpnameSession, Priority, PurchaseOrder,
-  Rental, Repair, Role, ROLE_USER, SLA_BY_PRIORITY, TimelineEvent, Toast, TransferRecord, TxType, View, WorkOrder,
-  d, daysUntil, fmtIDR, lifeYears, monthlyDep, periodKey, uid,
+  ADJ_APPROVAL_THRESHOLD, Accessory, AuditEntry, BizContract, Complaint, Connector, DEPR_SALVAGE, DepreciationTx,
+  DisposalRecord, Equipment, FormResult, Inspection, InventoryItem, LedgerEntry, Loan, MobileTask, Notif, NotifKind,
+  OpnameSession, Priority, PurchaseOrder, Rental, Repair, Role, ROLE_USER, SLA_BY_PRIORITY, SyncEntry, TimelineEvent,
+  Toast, TransferRecord, TxType, View, WorkOrder, d, daysUntil, fmtIDR, lifeYears, monthlyDep, periodKey, uid,
 } from "./types";
 import {
-  ACCESSORIES, APPROVALS, AUDIT, BUILDINGS, CALIBRATIONS, COMPLAINTS, CONTRACTS, DEMAND_PLANS, DEPR_POSTED,
-  EQUIPMENT, FORM_TEMPLATES, INSPECTIONS, ISSUES, ITEMS, LEDGER_INIT, LOANS, NOTIFS, OPNAMES, PURCHASE_ORDERS,
-  PURCHASE_REQUESTS, RECEIPTS, RENTALS, REPAIRS, SPARE_PARTS, SUPPLIERS, TECHNICIANS, TIMELINE, TRANSFERS,
-  UTIL_SERIES, WORK_ORDERS,
+  ACCESSORIES, APPROVALS, AUDIT, BUILDINGS, CALIBRATIONS, COMPLAINTS, CONNECTORS, CONTRACTS, DEMAND_PLANS,
+  DEPR_POSTED, DISPOSALS, EQUIPMENT, FORM_TEMPLATES, INSPECTIONS, ISSUES, ITEMS, LEDGER_INIT, LOANS, MOBILE_TASKS,
+  NOTIFS, OPNAMES, PURCHASE_ORDERS, PURCHASE_REQUESTS, RECEIPTS, RENTALS, REPAIRS, SPARE_PARTS, SUPPLIERS,
+  SYNC_LOG, TECHNICIANS, TIMELINE, TRANSFERS, UTIL_SERIES, WORK_ORDERS,
 } from "./data";
 
 export interface AppState {
@@ -23,6 +23,7 @@ export interface AppState {
   technicians: typeof TECHNICIANS; suppliers: typeof SUPPLIERS; accessories: Accessory[];
   loans: Loan[]; rentals: Rental[]; contracts: BizContract[];
   deprPosted: Record<string, string[]>; utilSeries: Record<string, number[]>;
+  disposals: DisposalRecord[]; connectors: Connector[]; mobileTasks: MobileTask[]; syncLog: SyncEntry[];
   audit: AuditEntry[]; notifs: Notif[]; toasts: Toast[];
 }
 
@@ -37,6 +38,7 @@ const INIT: AppState = {
   technicians: TECHNICIANS, suppliers: SUPPLIERS, accessories: ACCESSORIES,
   loans: LOANS, rentals: RENTALS, contracts: CONTRACTS,
   deprPosted: DEPR_POSTED, utilSeries: UTIL_SERIES,
+  disposals: DISPOSALS, connectors: CONNECTORS, mobileTasks: MOBILE_TASKS, syncLog: SYNC_LOG,
   audit: AUDIT, notifs: NOTIFS, toasts: [],
 };
 
@@ -85,7 +87,14 @@ type Act =
   | { t: "LOG_USAGE"; eqId: string; hours: number }
   | { t: "INTEL_AUDIT"; action: string; entity: string; entityId: string; reason?: string; delta?: string }
   | { t: "AUTO_PR"; lines: { sku: string; name: string; qty: number; estCost: number }[] }
-  | { t: "APPLY_REC"; sku: string; min: number; reorder: number; max: number };
+  | { t: "APPLY_REC"; sku: string; min: number; reorder: number; max: number }
+  | { t: "RETIRE_REQUEST"; eqId: string; reason: string; method: DisposalRecord["method"]; residual: number }
+  | { t: "DISPOSE_CONFIRM"; eqId: string; method: DisposalRecord["method"]; proceeds: number; note: string }
+  | { t: "MOBILE_DOWNLOAD"; taskId: string }
+  | { t: "MOBILE_QUEUE"; taskId: string }
+  | { t: "MOBILE_SYNC"; taskId: string; conflictResolved?: "SERVER" | "FIELD" }
+  | { t: "CONNECTOR_TOGGLE"; id: string }
+  | { t: "CONNECTOR_RETRY"; id: string };
 
 const now = () => new Date().toISOString();
 const mkAudit = (actor: string, role: string, action: string, entity: string, entityId: string, reason?: string, delta?: string): AuditEntry => ({ id: "AUD-" + uid(), date: now(), actor, role, action, entity, entityId, reason, delta });
@@ -340,6 +349,18 @@ function reducer(s: AppState, a: Act): AppState {
             ...next,
             loans: next.loans.map((x) => (x.id === loanId ? { ...x, status: "APPROVED" } : x)),
             timeline: [mkTimeline(ln.eqId, "UTILIZATION", `Pinjaman ${ln.code} disetujui`, "Aset siap diserahterimakan ke peminjam.", me.name, undefined, "APPROVED"), ...next.timeline],
+          };
+        }
+      }
+      if (ap.type === "DISPOSAL") {
+        const eqId = String(meta.eqId);
+        const eq = s.equipment.find((e) => e.id === eqId);
+        if (eq) {
+          next = {
+            ...next,
+            equipment: next.equipment.map((e) => (e.id === eqId ? { ...e, opStatus: "RETIRED", lifecycle: 7 } : e)),
+            timeline: [mkTimeline(eqId, "LIFECYCLE", `Pensiun disetujui (${ap.ref})`, `${eq.name} ditarik dari layanan (RETIRED). Lanjutkan eksekusi pelepasan di modul Disposal.`, me.name, undefined, "RETIRED"), ...next.timeline],
+            notifs: [mkNotif("DISPOSAL", `${eq.name} resmi RETIRED — siap dieksekusi pelepasannya.`, eqId), ...next.notifs],
           };
         }
       }
@@ -676,6 +697,102 @@ function reducer(s: AppState, a: Act): AppState {
       };
     }
 
+    /* ── Phase 5: retirement, disposal, mobile ops, integrations ── */
+    case "RETIRE_REQUEST": {
+      const eq = s.equipment.find((e) => e.id === a.eqId)!;
+      const ref = "RTR-2608-" + String(1 + s.approvals.filter((x) => x.type === "DISPOSAL").length).padStart(3, "0");
+      const apr = { id: "APR-" + uid(), type: "DISPOSAL" as const, ref, requester: me.name, value: a.residual, risk: "LOW" as const, summary: `Pensiun & pelepasan: ${eq.name} (${eq.code}) — metode ${a.method}`, matrix: ["Kepala Unit", "Pengelola Aset", "Direksi"], status: "PENDING" as const, date: now(), meta: { eqId: a.eqId, method: a.method, residual: a.residual, reason: a.reason } };
+      return {
+        ...s, approvals: [apr, ...s.approvals],
+        timeline: [mkTimeline(a.eqId, "LIFECYCLE", `Pengajuan pensiun ${ref}`, `${a.reason} · metode ${a.method}, estimasi residu ${fmtIDR(a.residual)}. Menunggu approval (BR-007).`, me.name, undefined, "PENDING"), ...s.timeline],
+        audit: [mkAudit(me.name, s.role, "ASSET.RETIRE_REQUEST", "asset_lifecycle", ref, a.reason, `${eq.code} lifecycle 6 → pending pensiun`), ...s.audit],
+        notifs: [mkNotif("DISPOSAL", `Pengajuan pensiun ${ref} — ${eq.name}.`, a.eqId), ...s.notifs],
+        toasts: [...s.toasts, okToast(`Pengajuan pensiun ${ref} masuk antrian persetujuan (BR-007)`, "info")],
+      };
+    }
+
+    case "DISPOSE_CONFIRM": {
+      const eq = s.equipment.find((e) => e.id === a.eqId)!;
+      const code = "DSP-2608-" + String(3 + s.disposals.length).padStart(3, "0");
+      const rec: DisposalRecord = { id: "DSP-" + uid(), code, eqId: a.eqId, date: now(), method: a.method, residual: eq.acqCost * 0.1, proceeds: a.proceeds, approver: me.name, note: a.note };
+      const evs: TimelineEvent[] = [mkTimeline(a.eqId, "LIFECYCLE", `Aset dilepaskan — ${code}`, `Metode ${a.method}. ${a.note}`, me.name, undefined, "DISPOSED")];
+      if (a.proceeds > 0) evs.unshift(mkTimeline(a.eqId, "FINANCE", `Hasil pelepasan ${fmtIDR(a.proceeds)}`, `Penerimaan ${a.method} diposting ke Finance/Accounting.`, me.name, a.proceeds));
+      return {
+        ...s, disposals: [rec, ...s.disposals],
+        equipment: s.equipment.map((e) => (e.id === a.eqId ? { ...e, opStatus: "DISPOSED", lifecycle: 8 } : e)),
+        timeline: [...evs, ...s.timeline],
+        audit: [mkAudit(me.name, s.role, "ASSET.DISPOSE", "asset_disposal", code, a.note, `${eq.code} RETIRED → DISPOSED · ${fmtIDR(a.proceeds)}`), ...s.audit],
+        notifs: [mkNotif("DISPOSAL", `${eq.name} resmi dilepaskan (${a.method}) — ${code}.`, a.eqId), ...s.notifs],
+        toasts: [...s.toasts, okToast(`${eq.name} dilepaskan via ${a.method} · ${code}`)],
+      };
+    }
+
+    case "MOBILE_DOWNLOAD":
+      return {
+        ...s, mobileTasks: s.mobileTasks.map((t) => (t.id === a.taskId ? { ...t, status: "DOWNLOADED" } : t)),
+        toasts: [...s.toasts, okToast("Tugas diunduh untuk operasi offline", "info")],
+      };
+
+    case "MOBILE_QUEUE": {
+      const t = s.mobileTasks.find((x) => x.id === a.taskId)!;
+      return {
+        ...s, mobileTasks: s.mobileTasks.map((x) => (x.id === a.taskId ? { ...x, status: "QUEUED" } : x)),
+        toasts: [...s.toasts, okToast(`${t.code} masuk antrian offline (local-first)`, "warn")],
+      };
+    }
+
+    case "MOBILE_SYNC": {
+      const t = s.mobileTasks.find((x) => x.id === a.taskId)!;
+      const eq = s.equipment.find((e) => e.id === t.eqId)!;
+      const corr = "corr-" + uid().toLowerCase();
+      let next: AppState = { ...s, mobileTasks: s.mobileTasks.map((x) => (x.id === a.taskId ? { ...x, status: "SYNCED" } : x)) };
+      let event = "asset.inspected";
+      let note = `${eq.name} — hasil lapangan tersinkron`;
+      let auditAct = "SYNC.PUSH";
+      let auditEnt = "sync";
+
+      if (t.kind === "INSPECTION" && a.conflictResolved !== "SERVER") {
+        const insp: Inspection = { id: "INS-" + uid(), code: "INS-2608-" + String(6 + s.inspections.length).padStart(3, "0"), eqId: t.eqId, date: now(), nextDue: new Date(Date.now() + 90 * 864e5).toISOString(), inspector: me.name, checklist: [{ item: "Grounding resistance", pass: true }, { item: "Leakage current", pass: true }, { item: "Kabel & plug", pass: true }, { item: "Label & QR", pass: true }], result: "PASS", note: "Dikerjakan offline via PWA — sinkron" };
+        next = { ...next, inspections: [insp, ...next.inspections], timeline: [mkTimeline(t.eqId, "INSPECTION", `Inspeksi lapangan ${insp.code} PASS`, "Hasil input offline tersinkron ke server.", me.name), ...next.timeline] };
+        event = "asset.inspected"; auditAct = "ASSET.INSPECT"; auditEnt = "inspection";
+      } else if (t.kind === "PM" && t.woId) {
+        next = { ...next, workOrders: next.workOrders.map((w) => (w.id === t.woId ? { ...w, status: "IN_PROGRESS" } : w)), equipment: next.equipment.map((e) => (e.id === t.eqId ? { ...e, opStatus: "MAINTENANCE" } : e)), timeline: [mkTimeline(t.eqId, "MAINTENANCE", "WO dimulai dari lapangan", "Eksekusi PM via mobile PWA.", me.name), ...next.timeline] };
+        event = "asset.maintenance.started"; auditAct = "MAINTENANCE.START"; auditEnt = "work_order";
+      } else if (t.kind === "CALIBRATION") {
+        const cert = "KAL-2608-" + String(70 + s.calibrations.length);
+        next = { ...next, calibrations: [{ id: "CAL-" + uid(), eqId: t.eqId, date: now(), result: "PASS", cert, techId: "T-01", nextDue: new Date(Date.now() + 365 * 864e5).toISOString(), cost: 900_000 }, ...next.calibrations], equipment: next.equipment.map((e) => (e.id === t.eqId ? { ...e, calStatus: "VALID", calDue: new Date(Date.now() + 365 * 864e5).toISOString() } : e)), timeline: [mkTimeline(t.eqId, "CALIBRATION", `Kalibrasi PASS — ${cert}`, "Sertifikat terbit via sinkron mobile.", "T-01", 900_000, "VALID"), ...next.timeline] };
+        event = "asset.calibration.completed"; auditAct = "CALIBRATION.COMPLETE"; auditEnt = "calibration";
+      }
+      if (a.conflictResolved === "SERVER") note = "Konflik versi — dipakai versi server";
+
+      return {
+        ...next,
+        syncLog: [{ id: "SY-" + uid(), ts: now(), taskCode: t.code, event, correlationId: corr, status: a.conflictResolved ? "CONFLICT" : "OK", note }, ...next.syncLog],
+        audit: [mkAudit(me.name, s.role, auditAct, auditEnt, t.code, `Sinkron mobile (${event}) · ${corr}`), ...next.audit],
+        notifs: [mkNotif("SYNC", `${t.code} tersinkron → ${event}.`, t.eqId), ...next.notifs],
+        toasts: [...next.toasts, okToast(`${t.code} tersinkron · ${event}`)],
+      };
+    }
+
+    case "CONNECTOR_TOGGLE": {
+      const c = s.connectors.find((x) => x.id === a.id)!;
+      const to: Connector["status"] = c.status === "OFFLINE" ? "CONNECTED" : "OFFLINE";
+      return {
+        ...s, connectors: s.connectors.map((x) => (x.id === a.id ? { ...x, status: to, lastSync: to === "CONNECTED" ? now() : x.lastSync } : x)),
+        audit: [mkAudit(me.name, s.role, to === "CONNECTED" ? "INTEGRATION.CONNECT" : "INTEGRATION.DISCONNECT", "integration", c.name, undefined, `${c.status} → ${to}`), ...s.audit],
+        toasts: [...s.toasts, okToast(`${c.name} ${to === "CONNECTED" ? "tersambung" : "diputus"}`, to === "CONNECTED" ? "ok" : "warn")],
+      };
+    }
+
+    case "CONNECTOR_RETRY": {
+      const c = s.connectors.find((x) => x.id === a.id)!;
+      return {
+        ...s, connectors: s.connectors.map((x) => (x.id === a.id ? { ...x, status: "CONNECTED", retries: 0, lastSync: now() } : x)),
+        audit: [mkAudit(me.name, s.role, "INTEGRATION.RETRY", "integration", c.name, `${c.retries} retry diproses ulang`, `${c.status} → CONNECTED`), ...s.audit],
+        toasts: [...s.toasts, okToast(`${c.retries} event retry ${c.name} dikirim ulang (idempoten)`)],
+      };
+    }
+
     default: return s;
   }
 }
@@ -715,6 +832,11 @@ interface Api {
   intelAudit: (action: string, entity: string, entityId: string, reason?: string, delta?: string) => void;
   autoPr: (lines: { sku: string; name: string; qty: number; estCost: number }[]) => void;
   applyRec: (sku: string, min: number, reorder: number, max: number) => void;
+  retireRequest: (eqId: string, reason: string, method: DisposalRecord["method"], residual: number) => void;
+  confirmDisposal: (eqId: string, method: DisposalRecord["method"], proceeds: number, note: string) => void;
+  mobileDownload: (taskId: string) => void; mobileQueue: (taskId: string) => void;
+  mobileSync: (taskId: string, conflictResolved?: "SERVER" | "FIELD") => void;
+  toggleConnector: (id: string) => void; retryConnector: (id: string) => void;
 }
 
 const Ctx = createContext<Api | null>(null);
@@ -768,6 +890,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     intelAudit: (action, entity, entityId, reason, delta) => dispatch({ t: "INTEL_AUDIT", action, entity, entityId, reason, delta }),
     autoPr: (lines) => dispatch({ t: "AUTO_PR", lines }),
     applyRec: (sku, min, reorder, max) => dispatch({ t: "APPLY_REC", sku, min, reorder, max }),
+    retireRequest: (eqId, reason, method, residual) => dispatch({ t: "RETIRE_REQUEST", eqId, reason, method, residual }),
+    confirmDisposal: (eqId, method, proceeds, note) => dispatch({ t: "DISPOSE_CONFIRM", eqId, method, proceeds, note }),
+    mobileDownload: (taskId) => dispatch({ t: "MOBILE_DOWNLOAD", taskId }),
+    mobileQueue: (taskId) => dispatch({ t: "MOBILE_QUEUE", taskId }),
+    mobileSync: (taskId, conflictResolved) => dispatch({ t: "MOBILE_SYNC", taskId, conflictResolved }),
+    toggleConnector: (id) => dispatch({ t: "CONNECTOR_TOGGLE", id }),
+    retryConnector: (id) => dispatch({ t: "CONNECTOR_RETRY", id }),
   }), [s]);
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>;
 }

@@ -4,13 +4,14 @@ export type View =
   | "dashboard" | "equipment" | "equipment-detail" | "inventory" | "logistics" | "opname"
   | "technical" | "complaints" | "procurement" | "reporting"
   | "master" | "locations" | "approvals" | "audit" | "rbac"
-  | "utilization" | "rental" | "depreciation" | "intelligence";
+  | "utilization" | "rental" | "depreciation" | "intelligence"
+  | "mobile" | "disposal" | "integrations";
 
 export type Role =
   | "Direksi" | "Pengelola Aset" | "Pengelola Inventory" | "Kepala Gudang" | "Petugas Gudang"
   | "Kepala Unit" | "Teknisi" | "Kepala Teknisi" | "Auditor" | "IT Administrator";
 
-export type OpStatus = "IN_SERVICE" | "MAINTENANCE" | "CALIBRATION" | "DOWN" | "RETIRED";
+export type OpStatus = "IN_SERVICE" | "MAINTENANCE" | "CALIBRATION" | "DOWN" | "RETIRED" | "DISPOSED";
 export type CalStatus = "VALID" | "DUE_SOON" | "EXPIRED" | "FAILED" | "NOT_REQUIRED";
 export type Risk = "HIGH" | "MEDIUM" | "LOW";
 export type Criticality = "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
@@ -28,7 +29,8 @@ export type LoanStatus = "REQUESTED" | "APPROVED" | "ON_LOAN" | "RETURNED" | "CL
 export type NotifKind =
   | "LOW_STOCK" | "CALIBRATION_DUE" | "CALIBRATION_EXPIRED" | "MAINTENANCE_DUE" | "MAINTENANCE_OVERDUE"
   | "COMPLAINT_CREATED" | "COMPLAINT_SLA_BREACH" | "APPROVAL_PENDING" | "STOCK_VARIANCE" | "ASSET_IDLE"
-  | "INSPECTION_DUE" | "CONTRACT_EXPIRING" | "REMINDER";
+  | "INSPECTION_DUE" | "CONTRACT_EXPIRING" | "REMINDER"
+  | "DISPOSAL" | "SYNC";
 
 /* ── entities ── */
 
@@ -69,6 +71,10 @@ export interface IssueRec { id: string; ref: string; date: string; sku: string; 
 export interface OpnameSession { id: string; code: string; date: string; status: "COUNTING" | "CLOSED"; by: string; items: { sku: string; name: string; uom: string; system: number; counted: number | null }[]; }
 export interface TransferRecord { id: string; ref: string; eqId: string; date: string; requester: string; fromRoom: string; toBuilding: string; toFloor: string; toRoom: string; reason: string; status: "PENDING" | "APPROVED" | "REJECTED"; decidedBy?: string; decidedAt?: string; }
 export interface Building { id: string; name: string; label: string; status: "PLANNED" | "ACTIVE" | "UNDER_RENOVATION" | "INACTIVE"; floors: string[]; year: number; note: string; }
+export interface DisposalRecord { id: string; code: string; eqId: string; date: string; method: "LELANG" | "HIBAH" | "PEMUSNAHAN" | "PENJUALAN"; residual: number; proceeds: number; approver: string; note: string; }
+export interface Connector { id: string; name: string; target: string; status: "CONNECTED" | "DEGRADED" | "OFFLINE"; p95: number; lastSync: string; evPerMin: number; retries: number; desc: string; }
+export interface MobileTask { id: string; code: string; eqId: string; kind: "INSPECTION" | "PM" | "CALIBRATION"; woId?: string; due: string; status: "ASSIGNED" | "DOWNLOADED" | "QUEUED" | "SYNCED"; }
+export interface SyncEntry { id: string; ts: string; taskCode: string; event: string; correlationId: string; status: "OK" | "CONFLICT" | "RETRY"; note: string; }
 export interface RoomInfo { id: string; building: string; floor: string; name: string; unit: string; }
 export interface Warehouse { id: string; name: string; code: string; keeper: string; zones: string[]; capacityLoc: number; usedLoc: number; desc: string; }
 

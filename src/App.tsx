@@ -3,7 +3,7 @@ import { StoreProvider, useApp } from "./lib/store";
 import { Chip, ToastHost } from "./components/ui";
 import {
   IcBell, IcBolt, IcBox, IcChart, IcCheck, IcChevD, IcClose, IcClock, IcFlag, IcGauge, IcHospital, IcLedger,
-  IcLayers, IcPin, IcPlus, IcPulse, IcScan, IcScroll, IcSearch, IcShield, IcStamp, IcSwap, IcTruck, IcUser, IcWarn, IcWrench, IcCart, IcPhone,
+  IcLayers, IcPin, IcPlus, IcPulse, IcScan, IcScroll, IcSearch, IcShield, IcStamp, IcSwap, IcTruck, IcUser, IcWarn, IcWrench, IcCart, IcPhone, IcX,
 } from "./components/icons";
 import { ROLES, ROLE_USER, Role, View, fmtDate, relTime } from "./lib/types";
 import { anomalies } from "./lib/intel";
@@ -27,6 +27,9 @@ import Utilization from "./views/Utilization";
 import RentalLoan from "./views/RentalLoan";
 import Depreciation from "./views/Depreciation";
 import Intelligence from "./views/Intelligence";
+import Mobile from "./views/Mobile";
+import Disposal from "./views/Disposal";
+import Integrations from "./views/Integrations";
 
 const TITLES: Record<View, string> = {
   dashboard: "Dashboard", equipment: "Equipment Registry", "equipment-detail": "Equipment 360°",
@@ -36,6 +39,7 @@ const TITLES: Record<View, string> = {
   approvals: "Approval Engine", audit: "Audit Trail", rbac: "Peran & Akses",
   utilization: "Asset Utilization", rental: "Sewa, Pinjaman & BGS/SGB", depreciation: "Depreciation",
   intelligence: "Enterprise Intelligence",
+  mobile: "Mobile Field Ops (PWA)", disposal: "Retirement & Disposal", integrations: "Integration Hub",
 };
 
 function Clock() {
@@ -172,6 +176,11 @@ function Shell() {
     { group: "Intelligence", items: [
       { id: "intelligence", label: "AI Intelligence", icon: <IcBolt size={15} />, badge: pendingAnomalies },
     ]},
+    { group: "Lapangan & Integrasi", items: [
+      { id: "mobile", label: "Mobile / PWA", icon: <IcPhone size={15} /> },
+      { id: "disposal", label: "Pensiun & Disposal", icon: <IcX size={15} /> },
+      { id: "integrations", label: "Integration Hub", icon: <IcPulse size={15} /> },
+    ]},
     { group: "Master", items: [
       { id: "master", label: "Master Data", icon: <IcHospital size={15} /> },
     ]},
@@ -226,7 +235,7 @@ function Shell() {
           <div className="mx-1 mt-2 rounded-md border border-pine-800 bg-pine-950/50 p-2.5">
             <p className="font-mono text-[8.5px] font-bold uppercase tracking-[0.16em] text-pine-500">Phase roadmap</p>
             <div className="mt-1.5 space-y-1">
-              {[["P1 Core Inventory & Asset", true], ["P2 Technical Operations", true], ["P3 Utilization & Finance", true], ["P4 Enterprise Intelligence", true]].map(([label, on]) => (
+              {[["P1 Core Inventory & Asset", true], ["P2 Technical Operations", true], ["P3 Utilization & Finance", true], ["P4 Enterprise Intelligence", true], ["P5 Field Ops & Integration", true]].map(([label, on]) => (
                 <p key={label as string} className="flex items-center gap-1.5 font-mono text-[9.5px] text-pine-100/70">
                   {on ? <IcCheck size={10} className="text-pine-500" /> : <IcClose size={10} className="text-pine-700" />} {label}
                 </p>
@@ -320,6 +329,9 @@ function Shell() {
             {s.view === "rental" && <RentalLoan />}
             {s.view === "depreciation" && <Depreciation />}
             {s.view === "intelligence" && <Intelligence />}
+            {s.view === "mobile" && <Mobile />}
+            {s.view === "disposal" && <Disposal />}
+            {s.view === "integrations" && <Integrations />}
           </div>
           <footer className="mx-auto flex max-w-[1240px] flex-wrap items-center justify-between gap-2 px-4 pb-5 lg:px-6">
             <p className="font-mono text-[10px] text-mute">SIMASET v4.0 · PRD 18 Aug 2026 · Phase 1–4 complete · AI Intelligence live · transaction-driven · full traceability</p>

@@ -110,7 +110,7 @@ export const pmRisks = (s: AppState): PmRisk[] => s.equipment
   .sort((a, b) => b.score - a.score);
 
 /* ── anomaly detection (live rules) ── */
-export interface Anomaly { id: string; sev: "danger" | "warn"; label: string; detail: string; view: "complaints" | "technical" | "inventory" | "master" | "equipment-detail"; refId?: string; }
+export interface Anomaly { id: string; sev: "danger" | "warn"; label: string; detail: string; view: "complaints" | "technical" | "inventory" | "master" | "equipment-detail" | "integrations" | "disposal"; refId?: string; }
 export const anomalies = (s: AppState): Anomaly[] => {
   const out: Anomaly[] = [];
   s.complaints
@@ -129,6 +129,10 @@ export const anomalies = (s: AppState): Anomaly[] => {
     .forEach((i) => out.push({ id: "AN-STK-" + i.sku, sev: "warn", label: `Stok ≤ minimum — ${i.name}`, detail: `${i.stock} ${i.uom} ≤ min ${i.min}; coverage ${skuStats(s, i.sku).coverage} hari.`, view: "inventory" }));
   s.suppliers.filter((sp) => daysUntil(sp.contractUntil) < 0)
     .forEach((sp) => out.push({ id: "AN-SUP-" + sp.id, sev: "warn", label: `Kontrak supplier expired — ${sp.name}`, detail: `Berakhir ${Math.abs(daysUntil(sp.contractUntil))} hari lalu — kontinuitas pasokan berisiko.`, view: "master" }));
+  s.connectors.filter((c) => c.status === "OFFLINE")
+    .forEach((c) => out.push({ id: "AN-INT-" + c.id, sev: "danger", label: `Konektor OFFLINE — ${c.name}`, detail: `${c.retries} event menumpuk di retry queue — integrasi ${c.target} terputus.`, view: "integrations" }));
+  s.equipment.filter((e) => e.opStatus === "RETIRED" && !s.disposals.some((dp) => dp.eqId === e.id))
+    .forEach((e) => out.push({ id: "AN-DSP-" + e.id, sev: "warn", label: `Retired tanpa pelepasan — ${e.name}`, detail: "Aset sudah RETIRED tetapi belum dieksekusi pelepasannya (LELANG/HIBAH/PEMUSNAHAN).", view: "disposal", refId: e.id }));
   return out.sort((a, b) => (a.sev === b.sev ? 0 : a.sev === "danger" ? -1 : 1));
 };
 
