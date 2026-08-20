@@ -34,9 +34,19 @@ export type NotifKind =
   | "LOW_STOCK" | "CALIBRATION_DUE" | "CALIBRATION_EXPIRED" | "MAINTENANCE_DUE" | "MAINTENANCE_OVERDUE"
   | "COMPLAINT_CREATED" | "COMPLAINT_SLA_BREACH" | "APPROVAL_PENDING" | "STOCK_VARIANCE" | "ASSET_IDLE"
   | "INSPECTION_DUE" | "CONTRACT_EXPIRING" | "REMINDER"
-  | "DISPOSAL" | "SYNC";
+  | "DISPOSAL" | "SYNC" | "DISTRIBUTION" | "UNIT_RECEIPT";
 
 /* ── entities ── */
+
+export interface UserAccount { id: string; name: string; role: Role; unit: string | null; email: string; active: boolean; }
+export interface Delivery {
+  id: string; code: string; date: string; prRef: string; poRef: string; unit: string;
+  items: { kind: "ITEM" | "ASSET"; sku?: string; name: string; qty: number }[];
+  status: "PENDING" | "DELIVERED" | "RECEIVED";
+  courier?: string; deliveredAt?: string; receivedBy?: string; receivedAt?: string;
+}
+export const initialsOf = (name: string) =>
+  name.replace(/[,.]/g, "").split(/\s+/).filter((w) => w.length > 2 || /^[A-Z]/.test(w)).slice(0, 2).map((w) => w[0].toUpperCase()).join("");
 
 export interface Technician { id: string; name: string; specialty: string; cert: string; phone: string; vendor: boolean; }
 export interface Supplier { id: string; name: string; service: string; contractUntil: string; contact?: string; }

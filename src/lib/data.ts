@@ -3,8 +3,8 @@ import {
   CalibrationRecord, Complaint, Connector, DemandPlan, DisposalRecord, Equipment, FormTemplate, Inspection,
   InventoryItem, IssueRec, LedgerEntry, Loan, MobileTask, Notif, OpnameSession, PermLevel, PRLine, PRStageStatus,
   PurchaseOrder, PurchaseRequest, Receipt, Rental, Repair, Role, RoomInfo, SparePart, StageDecision, Supplier,
-  SyncEntry, SystemConfig, Technician, TimelineEvent, TransferRecord, TxType, Warehouse, WorkOrder,
-  d, isITSku, mkPendingStages, periodKey, uid,
+  SyncEntry, SystemConfig, Technician, TimelineEvent, TransferRecord, TxType, UserAccount, Warehouse, WorkOrder,
+  Delivery, d, isITSku, mkPendingStages, periodKey, uid,
 } from "./types";
 
 /* ── people & partners ── */
@@ -584,4 +584,38 @@ export const ACTIVE_SESSIONS: ActiveSession[] = [
   { id: "SES-3", user: "Agus Firmansyah", role: "Teknisi", device: "PWA · Android (field)", ip: "10.9.2.14", since: d(0, 8), mfa: true },
   { id: "SES-4", user: "dr. Hartono Wibowo", role: "Direksi", device: "Safari · iPad", ip: "10.8.6.90", since: d(0, 9), mfa: true },
   { id: "SES-5", user: "Yusuf Ramadhan", role: "Auditor", device: "Firefox · Linux", ip: "10.8.4.77", since: d(0, 10), mfa: false },
+];
+
+/* ── Phase 8: user accounts (per unit) & distribusi ke unit peminta ── */
+
+export const USERS: UserAccount[] = [
+  { id: "US-01", name: "Rina Kusuma, S.T.", role: "Pengelola Aset", unit: null, email: "rina.kusuma@rs-harapan.id", active: true },
+  { id: "US-02", name: "Galih Saputra", role: "Pengelola Inventory", unit: "Gudang", email: "galih.saputra@rs-harapan.id", active: true },
+  { id: "US-03", name: "Bambang Prasetyo", role: "Kepala Gudang", unit: "Gudang", email: "bambang.prasetyo@rs-harapan.id", active: true },
+  { id: "US-04", name: "Sari Melati", role: "Petugas Gudang", unit: "Gudang", email: "sari.melati@rs-harapan.id", active: true },
+  { id: "US-05", name: "Ns. Dewi Lestari", role: "Kepala Unit", unit: "ICU", email: "dewi.lestari@rs-harapan.id", active: true },
+  { id: "US-06", name: "dr. Bimo Prasetyo", role: "Kepala Unit", unit: "IGD", email: "bimo.prasetyo@rs-harapan.id", active: true },
+  { id: "US-07", name: "dr. Lina Kartika, Sp.PK", role: "Kepala Unit", unit: "Laboratorium", email: "lina.kartika@rs-harapan.id", active: true },
+  { id: "US-08", name: "dr. Anton Wijaya, Sp.Rad", role: "Kepala Unit", unit: "Radiologi", email: "anton.wijaya@rs-harapan.id", active: true },
+  { id: "US-09", name: "Ns. Yuli Astuti", role: "Kepala Unit", unit: "Hemodialisa", email: "yuli.astuti@rs-harapan.id", active: true },
+  { id: "US-10", name: "Ratna Dewi, S.E.", role: "Finance", unit: "Keuangan", email: "ratna.dewi@rs-harapan.id", active: true },
+  { id: "US-11", name: "dr. H. Ahmad Fauzi, MARS", role: "COO", unit: "Manajemen", email: "ahmad.fauzi@rs-harapan.id", active: true },
+  { id: "US-12", name: "Dian Pratiwi", role: "IT Administrator", unit: "IT", email: "dian.pratiwi@rs-harapan.id", active: true },
+  { id: "US-13", name: "Hendra Wijaya", role: "Kepala Teknisi", unit: "Teknik", email: "hendra.wijaya@rs-harapan.id", active: true },
+  { id: "US-14", name: "Agus Firmansyah", role: "Teknisi", unit: "Teknik", email: "agus.firmansyah@rs-harapan.id", active: true },
+  { id: "US-15", name: "Yusuf Ramadhan", role: "Auditor", unit: null, email: "yusuf.ramadhan@rs-harapan.id", active: true },
+  { id: "US-16", name: "dr. Hartono Wibowo", role: "Direksi", unit: null, email: "hartono.wibowo@rs-harapan.id", active: true },
+];
+
+export const DELIVERIES: Delivery[] = [
+  {
+    id: "DL-1", code: "DIST-2608-029", date: d(-1, 10), prRef: "PR-2608-011", poRef: "PO-2607-088", unit: "IGD",
+    items: [{ kind: "ITEM", sku: "FAR-1102", name: "NaCl 0.9% 500 ml", qty: 400 }],
+    status: "DELIVERED", courier: "Sari Melati", deliveredAt: d(0, 8),
+  },
+  {
+    id: "DL-2", code: "DIST-2608-030", date: d(0, 9), prRef: "PR-2608-012", poRef: "PO-2608-091", unit: "ICU",
+    items: [{ kind: "ITEM", sku: "BHP-0012", name: "Handscoon Nitrile M", qty: 300 }, { kind: "ITEM", sku: "BHP-0031", name: "Spuit 3 cc Terumo", qty: 500 }],
+    status: "PENDING",
+  },
 ];

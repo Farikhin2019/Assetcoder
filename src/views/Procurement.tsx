@@ -3,10 +3,13 @@ import { useApp } from "../lib/store";
 import { BtnSm, Card, Chip, Input, Label, Modal, Select, StatusChip, Tabs, BtnGhost, BtnPrimary, TextArea } from "../components/ui";
 import { IcCart, IcCheck, IcChevD, IcClose, IcPlus, IcTruck, IcWrench } from "../components/icons";
 import { daysUntil, fmtDate, fmtIDR, fmtIDRCompact, lineActiveStage, lineState, lineTotal, prStageLabels, prStageRole, prState, prTotal, PRLine } from "../lib/types";
+import { DEST_UNITS } from "../lib/data";
 
-const canPlan = (r: string) => ["Pengelola Inventory", "Kepala Gudang", "Pengelola Aset", "Direksi"].includes(r);
+const canPlan = (r: string) => ["Pengelola Inventory", "Kepala Gudang", "Pengelola Aset", "Direksi", "Kepala Unit"].includes(r);
 const canOps = (r: string) => ["Pengelola Inventory", "Kepala Gudang", "Direksi"].includes(r);
 const canRevise = (r: string) => ["Pengelola Inventory", "Kepala Gudang", "Pengelola Aset", "Kepala Unit", "Direksi"].includes(r);
+const canDispatch = (r: string) => ["Kepala Gudang", "Petugas Gudang", "Pengelola Inventory", "Direksi"].includes(r);
+const canConfirm = (r: string) => ["Pengelola Aset", "Pengelola Inventory", "Kepala Gudang", "Direksi"].includes(r);
 
 function StageTracker({ line }: { line: PRLine }) {
   const active = lineActiveStage(line);
@@ -37,7 +40,7 @@ function StageTracker({ line }: { line: PRLine }) {
 }
 
 export default function Procurement() {
-  const { s, submitDemand, reviewDemand, consolidateDemand, createPo, receivePo, prDecide, prDecideAll, prRevise } = useApp();
+  const { s, submitDemand, reviewDemand, consolidateDemand, createPo, receivePo, prDecide, prDecideAll, prRevise, deliver, unitReceive } = useApp();
   const [tab, setTab] = useState("pr");
 
   const [decision, setDecision] = useState<{ prId: string; lineId: string; ok: boolean } | null>(null);
@@ -50,7 +53,7 @@ export default function Procurement() {
   const [supplierId, setSupplierId] = useState("S-03");
   const [eta, setEta] = useState(() => new Date(Date.now() + 14 * 864e5).toISOString().slice(0, 10));
   const [dpOpen, setDpOpen] = useState(false);
-  const [f, setF] = useState({ kind: "BHP" as "BHP" | "ASET", item: "Handscoon Nitrile M", category: "Monitoring", brand: "", model: "", qty: "100", uom: "box", estCost: "6800000", unit: "Seluruh Unit", needBy: new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10) });
+  const [f, setF] = useState({ kind: "BHP" as "BHP" | "ASET", item: "Handscoon Nitrile M", category: "Monitoring", brand: "", model: "", qty: "100", uom: "box", estCost: "6800000", unit: DEST_UNITS[0], needBy: new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10) });
   const [err, setErr] = useState("");
 
   const itemOpts = [...s.items.map((i) => i.name), ...s.spareParts.map((p) => p.name)];
@@ -111,7 +114,7 @@ export default function Procurement() {
           <h1 className="font-display text-[22px] font-black tracking-tight text-ink">Procurement</h1>
           <p className="text-xs text-mute">Semua barang: BHP (→ ledger) & aset/CAPEX (→ registrasi equipment) · Demand → PR → 3 tahap → PO → GRN</p>
         </div>
-        <BtnPrimary disabled={!canPlan(s.role)} title={!canPlan(s.role) ? "Butuh role Pengelola Inventory / Kepala Gudang" : undefined} onClick={() => setDpOpen(true)}>
+        <BtnPrimary disabled={!canPlan(s.role)} title={!canPlan(s.role) ? "Butuh role unit / gudang / inventory" : undefined} onClick={() => { setF((p) => ({ ...p, unit: s.userUnit ?? p.unit })); setErr(""); setDpOpen(true); }}>
           <IcPlus size={13} /> Demand plan baru
         </BtnPrimary>
       </div>
@@ -133,8 +136,8 @@ export default function Procurement() {
 
       <Card className="p-4">
         <Tabs active={tab} onChange={setTab}
-          tabs={[{ id: "pr", label: "Purchase Request & Persetujuan" }, { id: "dp", label: "Demand Planning" }, { id: "po", label: "Purchase Order" }]}
-          counts={{ pr: s.purchaseRequests.length, dp: s.demandPlans.length, po: s.purchaseOrders.length }} />
+          tabs={[{ id: "pr", label: "Purchase Request & Persetujuan" }, { id: "dp", label: "Demand Planning" }, { id: "po", label: "Purchase Order" }, { id: "dist", label: "Distribusi ke Unit" }]}
+          counts={{ pr: s.purchaseRequests.length, dp: s.demandPlans.length, po: s.purchaseOrders.length, dist: s.deliveries.filter((d) => d.status !== "RECEIVED").length }} />
         <div className="pt-4">
 
           {tab === "pr" && (
@@ -303,10 +306,70 @@ export default function Procurement() {
               })}
             </div>
           )}
+
+          {tab === "dist" && (
+            <div className="space-y-3">
+              {s.deliveries.length === 0 && <p className="py-8 text-center font-mono text-[11px] text-mute">Belum ada pengiriman — terima PO (GRN) untuk membuat pengiriman ke unit peminta.</p>}
+              {s.deliveries.map((dl, i) => {
+                const isMine = s.userUnit === dl.unit;
+                const stepIdx = dl.status === "PENDING" ? 0 : dl.status === "DELIVERED" ? 1 : 2;
+                return (
+                  <div key={dl.id} className={`row-in rounded-lg border p-4 transition hover:shadow-md ${isMine && dl.status !== "RECEIVED" ? "border-pine-500/50 bg-pine-50/40" : "border-line bg-paper"}`} style={{ animationDelay: `${i * 50}ms` }}>
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-mono text-[13px] font-bold text-ink">{dl.code}</p>
+                          <Chip tone={isMine ? "pine" : "neutral"}>UNIT: {dl.unit}{isMine ? " · Anda" : ""}</Chip>
+                          <StatusChip status={dl.status} />
+                        </div>
+                        <p className="mt-0.5 font-mono text-[10px] text-mute">dari {dl.prRef} · {dl.poRef} · {fmtDate(dl.date)}</p>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        {["Picking", "Dikirim", "Diterima"].map((st, j) => (
+                          <span key={st} className="flex items-center gap-1.5">
+                            <span className={`flex items-center gap-1 rounded border px-2 py-0.5 font-mono text-[9px] font-bold ${j < stepIdx ? "border-ok/40 bg-okbg text-ok" : j === stepIdx && dl.status !== "RECEIVED" ? "border-warn/60 bg-warnbg text-warn" : j === stepIdx ? "border-ok/40 bg-okbg text-ok" : "border-line bg-canvas text-mute"}`}>
+                              {j < stepIdx || (j === stepIdx && dl.status === "RECEIVED") ? <IcCheck size={9} /> : null}{st}
+                            </span>
+                            {j < 2 && <span className="text-[10px] text-line2">→</span>}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="mt-2.5 space-y-1">
+                      {dl.items.map((it, ii) => (
+                        <div key={it.sku ?? ii} className="flex items-center justify-between rounded-md border border-line bg-canvas/50 px-2.5 py-1.5">
+                          <span className="text-[12px] font-semibold text-ink">{it.name} <span className="font-mono text-[10px] text-mute">×{it.qty}</span></span>
+                          <span className="font-mono text-[10px] text-mute">{it.sku ?? "ASET"}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 border-t border-line pt-2.5">
+                      <span className="font-mono text-[10px] text-mute">
+                        {dl.status === "DELIVERED" && dl.courier ? <>kurir: <b>{dl.courier}</b> · {dl.deliveredAt ? fmtDate(dl.deliveredAt) : ""}</> :
+                          dl.status === "RECEIVED" && dl.receivedBy ? <>diterima: <b>{dl.receivedBy}</b> · {dl.receivedAt ? fmtDate(dl.receivedAt) : ""}</> :
+                            <>menunggu dikirim gudang</>}
+                      </span>
+                      {dl.status === "PENDING" && (
+                        <BtnSm disabled={!canDispatch(s.role)} title={!canDispatch(s.role) ? "Butuh role gudang/inventory" : undefined} onClick={() => deliver(dl.id)} className="!border-info/50 !text-info"><IcTruck size={12} /> Kirim ke Unit</BtnSm>
+                      )}
+                      {dl.status === "DELIVERED" && (
+                        isMine || canConfirm(s.role) ? (
+                          <BtnSm onClick={() => unitReceive(dl.id)} className="!border-ok/60 !text-ok"><IcCheck size={12} /> Konfirmasi Terima</BtnSm>
+                        ) : (
+                          <span className="font-mono text-[9.5px] text-mute">masuk sebagai user unit <b className="text-pine-700">{dl.unit}</b> untuk konfirmasi</span>
+                        )
+                      )}
+                      {dl.status === "RECEIVED" && <span className="font-mono text-[10px] font-bold text-ok">alur selesai ✓</span>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </Card>
 
-      <p className="font-mono text-[10.5px] text-mute">Persetujuan dicatat per-barang di audit trail · GRN BHP memposting RECEIPT ke ledger (BR-003) · GRN aset mendaftarkan equipment tertelusur ke PO (BR-001/002).</p>
+      <p className="font-mono text-[10.5px] text-mute">Persetujuan dicatat per-barang di audit trail · GRN BHP memposting RECEIPT ke ledger (BR-003) + otomatis membuat pengiriman ke unit peminta · GRN aset mendaftarkan equipment tertelusur ke PO (BR-001/002).</p>
 
       {/* decision modal (approve / reject single line) */}
       <Modal open={!!decision} onClose={() => setDecision(null)} kicker={decision?.ok ? "Approve baris" : "Tolak baris (beri saran)"} title={decLine?.name ?? ""}
@@ -382,7 +445,11 @@ export default function Procurement() {
             <div><Label>Est. biaya *</Label><Input type="number" value={f.estCost} onChange={(e) => setF({ ...f, estCost: e.target.value })} /></div>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <div><Label>Unit peminta</Label><Input value={f.unit} onChange={(e) => setF({ ...f, unit: e.target.value })} /></div>
+            <div><Label>Unit peminta</Label>
+              <Select value={f.unit} onChange={(e) => setF({ ...f, unit: e.target.value })}>
+                {DEST_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
+              </Select>
+            </div>
             <div><Label>Need by</Label><Input type="date" value={f.needBy} onChange={(e) => setF({ ...f, needBy: e.target.value })} /></div>
           </div>
           {f.kind === "ASET" && <p className="rounded-md bg-infobg px-3 py-2 text-xs font-semibold text-info">Aset yang disetujui & diterima (GRN) akan <b>otomatis terdaftar</b> di Equipment Registry dengan nomor aset baru.</p>}

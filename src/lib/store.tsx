@@ -4,18 +4,20 @@ import {
   DepreciationTx, DisposalRecord, Equipment, EventEnvelope, FormResult, Inspection, InventoryItem, isITSku, LedgerEntry, Loan,
   mkPendingStages, MobileTask, Notif, NotifChannel, NotifKind, OpnameSession, PRLine, Priority, PurchaseOrder,
   Rental, Repair, Role, ROLE_USER, SLA_BY_PRIORITY, StageDecision, SyncEntry, SystemConfig, TimelineEvent, Toast,
-  TransferRecord, TxType, View, WorkOrder, FormTemplate, d, daysUntil, fmtIDR, lifeYears, lineActiveStage, lineState,
-  lineTotal, monthlyDep, periodKey, prStageLabels, prStageRole, prState, uid,
+  TransferRecord, TxType, UserAccount, Delivery, View, WorkOrder, FormTemplate, d, daysUntil, fmtIDR, lifeYears,
+  lineActiveStage, lineState, lineTotal, monthlyDep, periodKey, prStageLabels, prStageRole, prState, uid,
 } from "./types";
 import {
   ACCESSORIES, APPROVALS, AUDIT, BUILDINGS, CALIBRATIONS, COMPLAINTS, CONFIG_DEFAULT, CONNECTORS, CONTRACTS,
   DEMAND_PLANS, DEPR_POSTED, DISPOSALS, EQUIPMENT, FORM_TEMPLATES, INSPECTIONS, ISSUES, ITEMS, LEDGER_INIT, LOANS,
   MOBILE_TASKS, NOTIFS, OPNAMES, PURCHASE_ORDERS, PURCHASE_REQUESTS, RECEIPTS, RENTALS, REPAIRS, SPARE_PARTS,
-  SUPPLIERS, SYNC_LOG, TECHNICIANS, TIMELINE, TRANSFERS, UTIL_SERIES, WORK_ORDERS,
+  SUPPLIERS, SYNC_LOG, TECHNICIANS, TIMELINE, TRANSFERS, USERS, DELIVERIES, UTIL_SERIES, WORK_ORDERS,
 } from "./data";
 
 export interface AppState {
   view: View; eqId: string | null; role: Role; searchQuery: string;
+  userId: string; userName: string; userUnit: string | null;
+  users: UserAccount[]; deliveries: Delivery[];
   equipment: Equipment[]; timeline: TimelineEvent[]; items: InventoryItem[]; ledger: LedgerEntry[];
   spareParts: typeof SPARE_PARTS; workOrders: WorkOrder[]; calibrations: typeof CALIBRATIONS;
   inspections: Inspection[]; formTemplates: FormTemplate[]; formResults: FormResult[];
@@ -33,6 +35,8 @@ export interface AppState {
 
 const INIT: AppState = {
   view: "command", eqId: null, role: "Pengelola Aset", searchQuery: "",
+  userId: "US-01", userName: "Rina Kusuma, S.T.", userUnit: null,
+  users: USERS, deliveries: DELIVERIES,
   equipment: EQUIPMENT, timeline: TIMELINE, items: ITEMS, ledger: LEDGER_INIT,
   spareParts: SPARE_PARTS, workOrders: WORK_ORDERS, calibrations: CALIBRATIONS,
   inspections: INSPECTIONS, formTemplates: FORM_TEMPLATES, formResults: [],
@@ -119,7 +123,11 @@ type Act =
   | { t: "NOTIF_ALL_READ" }
   | { t: "NOTIF_TEST"; kind: NotifKind; channel: NotifChannel }
   | { t: "FORM_SAVE"; template: FormTemplate }
-  | { t: "FORM_DELETE"; id: string };
+  | { t: "FORM_DELETE"; id: string }
+  | { t: "LOGIN_USER"; id: string }
+  | { t: "ADD_USER"; name: string; role: Role; unit: string | null; email: string }
+  | { t: "DELIVER"; id: string }
+  | { t: "UNIT_RECEIVE"; id: string };
 
 const now = () => new Date().toISOString();
 const mkAudit = (actor: string, role: string, action: string, entity: string, entityId: string, reason?: string, delta?: string): AuditEntry => ({ id: "AUD-" + uid(), date: now(), actor, role, action, entity, entityId, reason, delta });
@@ -151,7 +159,7 @@ const mkEquipmentFromPo = (seq: number, name: string, category: string, price: n
 };
 
 function coreReducer(s: AppState, a: Act): AppState {
-  const me = ROLE_USER[s.role];
+  const me = { name: s.userName, initials: s.userName.replace(/[,.]/g, "").split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("") };
   switch (a.t) {
     case "NAV": return { ...s, view: a.view, eqId: a.eqId ?? s.eqId, searchQuery: a.view === "equipment" ? s.searchQuery : "" };
     case "ROLE": return { ...s, role: a.role, toasts: [...s.toasts, okToast(`Role aktif: ${a.role} — izin & data scope disesuaikan`, "info")] };
@@ -588,16 +596,49 @@ function coreReducer(s: AppState, a: Act): AppState {
         }
       }
       const assetCount = newEquipment.length;
+
+      /* ── Baris BHP → otomatis dibuatkan pengiriman ke unit peminta (closing the loop) ── */
+      const pr = s.purchaseRequests.find((p) => p.code === po.prRef);
+      const destUnit = pr?.unit ?? "Gudang";
+      const bhpLines = po.items.filter((it) => it.kind !== "ASSET");
+      let deliveries = [...next.deliveries];
+      const issueEntries: LedgerEntry[] = [];
+      if (bhpLines.length > 0) {
+        for (const it of bhpLines) {
+          const cur = next.items.find((i) => i.sku === it.sku);
+          if (!cur) continue;
+          const bal = cur.stock - it.qty;
+          issueEntries.push(mkLedger(it.sku!, "ISSUE", -it.qty, bal, me.name, `${po.code} → ${destUnit}`, `Alokasi pengadaan ke unit peminta`));
+          next = { ...next, items: next.items.map((i) => (i.sku === it.sku ? { ...i, stock: bal } : i)) };
+        }
+        const dlCode = "DIST-2608-" + String(31 + s.deliveries.length).padStart(3, "0");
+        deliveries = [
+          {
+            id: "DL-" + uid(), code: dlCode, date: now(), prRef: po.prRef, poRef: po.code, unit: destUnit,
+            items: bhpLines.map((it) => ({ kind: "ITEM" as const, sku: it.sku, name: it.name, qty: it.qty })),
+            status: "PENDING" as const,
+          },
+          ...deliveries,
+        ];
+      }
+
+      const notifs = [
+        ...(assetCount > 0 ? [mkNotif("REMINDER", `${assetCount} aset baru dari ${po.code} menunggu distribusi ke unit (Gudang Aset).`, newEquipment[0].id)] : []),
+        ...(bhpLines.length > 0 ? [mkNotif("DISTRIBUTION", `Barang dari ${po.code} siap dikirim ke unit ${destUnit} (${bhpLines.length} item).`, destUnit)] : []),
+        ...next.notifs,
+      ];
+
       return {
-        ...next, receipts, ledger: [...entries, ...next.ledger],
+        ...next, receipts, ledger: [...entries, ...issueEntries, ...next.ledger],
         equipment: [...next.equipment, ...newEquipment],
         timeline: [...newTimeline, ...next.timeline],
-        notifs: assetCount > 0 ? [mkNotif("REMINDER", `${assetCount} aset baru dari ${po.code} menunggu distribusi ke unit (Gudang Aset).`, newEquipment[0].id), ...next.notifs] : next.notifs,
+        deliveries, notifs,
         audit: [
           ...(assetCount > 0 ? newEquipment.map((eq) => mkAudit(me.name, s.role, "ASSET.REGISTER", "asset", eq.code, `Dari pengadaan ${po.code}`, `${eq.name} · ${fmtIDR(eq.acqCost)}`)) : []),
+          ...(bhpLines.length > 0 ? [mkAudit(me.name, s.role, "LOGISTICS.DELIVERY_CREATED", "delivery", deliveries[0].code, `Unit peminta: ${destUnit}`, `${bhpLines.length} item dari ${po.code}`)] : []),
           mkAudit(me.name, s.role, "PROCUREMENT.GRN", "goods_receipt", po.code, undefined, `${po.items.length} line diterima${assetCount ? ` · ${assetCount} aset didaftarkan` : ""}`), ...next.audit,
         ],
-        toasts: [...next.toasts, okToast(assetCount > 0 ? `${po.code} diterima — ${assetCount} aset didaftarkan (Equipment 360°)` : `${po.code} diterima — GRN & ledger diposting`)],
+        toasts: [...next.toasts, okToast(assetCount > 0 ? `${po.code} diterima — ${assetCount} aset didaftarkan (Equipment 360°)` : `${po.code} diterima — GRN diposting & pengiriman ke ${destUnit} dibuat`)],
       };
     }
 
@@ -988,6 +1029,50 @@ function coreReducer(s: AppState, a: Act): AppState {
       };
     }
 
+    /* ── Phase 8: user accounts & distribusi ke unit peminta ── */
+
+    case "LOGIN_USER": {
+      const u = s.users.find((x) => x.id === a.id);
+      if (!u || !u.active) return { ...s, toasts: [...s.toasts, okToast("User tidak ditemukan atau non-aktif", "err")] };
+      return {
+        ...s,
+        userId: u.id, userName: u.name, role: u.role, userUnit: u.unit,
+        audit: [mkAudit(u.name, u.role, "SESSION.LOGIN", "user", u.id, undefined, `role ${u.role}${u.unit ? " · unit " + u.unit : ""}`), ...s.audit],
+        toasts: [...s.toasts, okToast(`Masuk sebagai ${u.name} — ${u.role}${u.unit ? " · " + u.unit : ""}`, "info")],
+      };
+    }
+
+    case "ADD_USER": {
+      const u: UserAccount = { id: "US-" + uid(), name: a.name, role: a.role, unit: a.unit, email: a.email, active: true };
+      return {
+        ...s, users: [...s.users, u],
+        audit: [mkAudit(me.name, s.role, "USER.CREATE", "user", u.id, undefined, `${a.name} · ${a.role}${a.unit ? " · " + a.unit : ""}`), ...s.audit],
+        toasts: [...s.toasts, okToast(`User ${a.name} ditambahkan (${a.role}${a.unit ? " · " + a.unit : ""})`)],
+      };
+    }
+
+    case "DELIVER": {
+      const dl = s.deliveries.find((x) => x.id === a.id)!;
+      return {
+        ...s,
+        deliveries: s.deliveries.map((x) => (x.id === a.id ? { ...x, status: "DELIVERED", courier: me.name, deliveredAt: now() } : x)),
+        audit: [mkAudit(me.name, s.role, "LOGISTICS.DISPATCH", "delivery", dl.code, undefined, `→ unit ${dl.unit}`), ...s.audit],
+        notifs: [mkNotif("DISTRIBUTION", `Pengiriman ${dl.code} menuju unit ${dl.unit} — mohon konfirmasi saat tiba.`, dl.unit), ...s.notifs],
+        toasts: [...s.toasts, okToast(`${dl.code} dikirim ke unit ${dl.unit} (kurir: ${me.name})`)],
+      };
+    }
+
+    case "UNIT_RECEIVE": {
+      const dl = s.deliveries.find((x) => x.id === a.id)!;
+      return {
+        ...s,
+        deliveries: s.deliveries.map((x) => (x.id === a.id ? { ...x, status: "RECEIVED", receivedBy: me.name, receivedAt: now() } : x)),
+        audit: [mkAudit(me.name, s.role, "LOGISTICS.UNIT_RECEIPT", "delivery", dl.code, "Serah terima unit peminta", `${dl.items.length} item diterima ${dl.unit}`), ...s.audit],
+        notifs: [mkNotif("UNIT_RECEIPT", `Unit ${dl.unit} mengonfirmasi penerimaan ${dl.code} (${dl.items.length} item).`, dl.unit), ...s.notifs],
+        toasts: [...s.toasts, okToast(`Unit ${dl.unit} menerima ${dl.code} — alur pengadaan selesai ✓`)],
+      };
+    }
+
     default: return s;
   }
 }
@@ -995,7 +1080,7 @@ function coreReducer(s: AppState, a: Act): AppState {
 /* ── event bus (§11): setiap aksi transaksi memancarkan envelope imutabel ── */
 
 function emitEvent(a: Act, s: AppState): EventEnvelope | null {
-  const me = ROLE_USER[s.role];
+  const me = { name: s.userName };
   let et = ""; let agg: EventEnvelope["aggregate_type"] = "asset"; let id = ""; let pl = "";
   switch (a.t) {
     case "COMPLAINT": et = "asset.complaint.created"; agg = "complaint"; id = a.eqId; pl = `prioritas ${a.priority} · ${a.description.slice(0, 52)}…`; break;
@@ -1019,6 +1104,10 @@ function emitEvent(a: Act, s: AppState): EventEnvelope | null {
     case "PR_DECIDE": et = a.ok ? "procurement.line.approved" : "procurement.line.rejected"; agg = "procurement"; id = a.lineId; pl = a.note.slice(0, 52) || (a.ok ? "lolos tahap" : "ditolak tahap"); break;
     case "PO_RECEIVE": et = "procurement.goods.received"; agg = "procurement"; id = a.poId; pl = "GRN diposting"; break;
     case "FORM_SAVE": et = "config.form.saved"; agg = "asset"; id = a.template.id; pl = `${a.template.name} · ${a.template.fields.length} field`; break;
+    case "LOGIN_USER": et = "session.login"; agg = "procurement"; id = a.id; pl = "sesi user dimulai"; break;
+    case "ADD_USER": et = "user.created"; agg = "procurement"; id = a.name; pl = `${a.role}${a.unit ? " · " + a.unit : ""}`; break;
+    case "DELIVER": et = "procurement.delivery.dispatched"; agg = "procurement"; id = a.id; pl = "dikirim ke unit peminta"; break;
+    case "UNIT_RECEIVE": et = "procurement.delivery.received"; agg = "procurement"; id = a.id; pl = "unit konfirmasi terima"; break;
     default: return null;
   }
   return { event_id: "evt_" + uid(), event_type: et, aggregate_type: agg, aggregate_id: id, timestamp: now(), actor: me.name, payload: pl, correlation_id: "corr-" + uid() };
@@ -1080,6 +1169,10 @@ interface Api {
   testNotify: (kind: NotifKind, channel: NotifChannel) => void;
   saveForm: (template: FormTemplate) => void;
   deleteForm: (id: string) => void;
+  loginUser: (id: string) => void;
+  addUser: (name: string, role: Role, unit: string | null, email: string) => void;
+  deliver: (id: string) => void;
+  unitReceive: (id: string) => void;
 }
 
 const Ctx = createContext<Api | null>(null);
@@ -1150,6 +1243,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     testNotify: (kind, channel) => dispatch({ t: "NOTIF_TEST", kind, channel }),
     saveForm: (template) => dispatch({ t: "FORM_SAVE", template }),
     deleteForm: (id) => dispatch({ t: "FORM_DELETE", id }),
+    loginUser: (id) => dispatch({ t: "LOGIN_USER", id }),
+    addUser: (name, role, unit, email) => dispatch({ t: "ADD_USER", name, role, unit, email }),
+    deliver: (id) => dispatch({ t: "DELIVER", id }),
+    unitReceive: (id) => dispatch({ t: "UNIT_RECEIVE", id }),
   }), [s]);
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>;
 }
