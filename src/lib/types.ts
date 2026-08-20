@@ -67,7 +67,7 @@ export interface Complaint { id: string; code: string; eqId: string; date: strin
 export interface Repair { id: string; code: string; eqId: string; complaintId: string | null; diagnosis: string; partsUsed: { partId: string; qty: number }[]; laborCost: number; status: RepairStatus; techId: string; started: string; }
 export interface Approval { id: string; type: ApprovalType; ref: string; summary: string; requester: string; value: number; risk: Risk; matrix: string[]; status: "PENDING" | "APPROVED" | "REJECTED"; date: string; meta?: Record<string, string | number>; }
 
-export interface DemandPlan { id: string; code: string; item: string; qty: number; uom: string; estCost: number; unit: string; needBy: string; status: "DRAFT" | "SUBMITTED" | "REVIEWED" | "APPROVED" | "CONSOLIDATED"; by: string; }
+export interface DemandPlan { id: string; code: string; kind: "BHP" | "ASET"; item: string; category?: string; brand?: string; model?: string; qty: number; uom: string; estCost: number; unit: string; needBy: string; status: "DRAFT" | "SUBMITTED" | "REVIEWED" | "APPROVED" | "CONSOLIDATED"; by: string; }
 
 /* ── PR approval: 3 tahap per-barang ──
    Tahap 1: IT (barang IT) atau UMUM (selain IT) → IT Administrator / Pengelola Inventory
@@ -75,9 +75,9 @@ export interface DemandPlan { id: string; code: string; item: string; qty: numbe
    Tahap 3: COO (final)                                                              */
 export type PRStageStatus = "PENDING" | "APPROVED" | "REJECTED";
 export interface StageDecision { status: PRStageStatus; approver: string; note: string; date: string; }
-export interface PRLine { sku: string; name: string; qty: number; unitCost: number; isIT: boolean; stages: StageDecision[]; revision: number; }
+export interface PRLine { id: string; kind: "ITEM" | "ASSET"; sku?: string; name: string; category?: string; brand?: string; model?: string; qty: number; unitCost: number; isIT: boolean; stages: StageDecision[]; revision: number; }
 export interface PurchaseRequest { id: string; code: string; date: string; requester: string; unit: string; needBy: string; lines: PRLine[]; status: "IN_APPROVAL" | "APPROVED" | "PARTIAL" | "REJECTED" | "PO_CREATED"; }
-export interface PurchaseOrder { id: string; code: string; date: string; supplierId: string; items: { sku: string; name: string; qty: number; price: number }[]; total: number; eta: string; status: "SENT" | "PARTIAL" | "RECEIVED" | "CLOSED"; prRef: string; }
+export interface PurchaseOrder { id: string; code: string; date: string; supplierId: string; items: { kind: "ITEM" | "ASSET"; sku?: string; name: string; category?: string; brand?: string; model?: string; qty: number; price: number }[]; total: number; eta: string; status: "SENT" | "PARTIAL" | "RECEIVED" | "CLOSED"; prRef: string; }
 
 export const isITSku = (sku: string) => sku.trim().toUpperCase().startsWith("IT-");
 export const prStageLabels = (isIT: boolean): string[] => [isIT ? "IT" : "UMUM", "KEUANGAN", "COO"];

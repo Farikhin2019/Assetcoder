@@ -84,14 +84,14 @@ type Act =
   | { t: "OPNAME_CREATE" }
   | { t: "OPNAME_COUNT"; id: string; sku: string; counted: number }
   | { t: "OPNAME_FINALIZE"; id: string }
-  | { t: "DEMAND_SUBMIT"; item: string; qty: number; uom: string; estCost: number; unit: string; needBy: string }
+  | { t: "DEMAND_SUBMIT"; kind: "BHP" | "ASET"; item: string; category?: string; brand?: string; model?: string; qty: number; uom: string; estCost: number; unit: string; needBy: string }
   | { t: "DEMAND_REVIEW"; id: string }
   | { t: "DEMAND_CONSOLIDATE"; id: string }
   | { t: "PO_CREATE"; prId: string; supplierId: string; eta: string }
   | { t: "PO_RECEIVE"; poId: string }
-  | { t: "PR_DECIDE"; prId: string; sku: string; ok: boolean; note: string }
+  | { t: "PR_DECIDE"; prId: string; lineId: string; ok: boolean; note: string }
   | { t: "PR_DECIDE_ALL"; prId: string; ok: boolean; note: string }
-  | { t: "PR_REVISE"; prId: string; sku: string; qty: number }
+  | { t: "PR_REVISE"; prId: string; lineId: string; qty: number }
   | { t: "ADD_TECH"; name: string; specialty: string; cert: string; phone: string; vendor: boolean }
   | { t: "ADD_SUPPLIER"; name: string; service: string; contractUntil: string; contact: string }
   | { t: "ADD_ACCESSORY"; name: string; eqId: string; qty: number; condition: Equipment["condition"]; note: string }
@@ -127,6 +127,24 @@ const mkNotif = (kind: NotifKind, msg: string, refId: string): Notif => ({ id: "
 const mkTimeline = (eqId: string, type: TimelineEvent["type"], title: string, detail: string, actor: string, cost?: number, status?: string): TimelineEvent => ({ id: uid(), eqId, type, date: now(), title, detail, actor, cost, status });
 const mkLedger = (sku: string, type: TxType, qty: number, balance: number, actor: string, ref: string, reason?: string): LedgerEntry => ({ id: uid(), date: now(), sku, type, qty, balance, actor, ref, reason });
 const okToast = (msg: string, kind: Toast["kind"] = "ok"): Toast => ({ id: uid(), msg, kind });
+
+/* Aset yang lahir dari pengadaan (GRN) — acquisition tertelusur ke PO/supplier (PRD §5) */
+const CAL_CATS = ["Imaging", "Life Support", "Laboratorium", "Monitoring", "Sterilisasi", "Infusion"];
+const mkEquipmentFromPo = (seq: number, name: string, category: string, price: number, supplierId: string, poCode: string, actor: string, brand?: string, model?: string): Equipment => {
+  const high = category === "Life Support" || category === "Imaging";
+  return {
+    id: "EQ-" + uid(), code: `AST-RS-2026-${String(seq).padStart(6, "0")}`, name, category,
+    brand: brand ?? "—", model: model ?? "—", serial: "SN-" + uid(), manufacturer: brand ?? "—",
+    prodYear: new Date().getFullYear(), acqDate: now(), acqCost: price, supplierId, warrantyUntil: d(365),
+    building: "Gedung C", floor: "Lantai 2", room: "Gudang Aset · Menunggu Distribusi", unit: "Pengelola Aset",
+    custodian: "Rina Kusuma, S.T.", pic: "Rina Kusuma, S.T.", condition: "EXCELLENT", opStatus: "IN_SERVICE",
+    risk: high ? "HIGH" : "MEDIUM", criticality: high ? "HIGH" : "MEDIUM",
+    calRequired: CAL_CATS.includes(category), calStatus: CAL_CATS.includes(category) ? "VALID" : "NOT_REQUIRED",
+    calLast: null, calDue: CAL_CATS.includes(category) ? d(365) : null,
+    maintStrategy: "PREVENTIVE", lastMaint: now(), nextMaint: d(180), lifecycle: 6, utilization: 0, mtbfHours: 800,
+    docs: [],
+  };
+};
 
 function coreReducer(s: AppState, a: Act): AppState {
   const me = ROLE_USER[s.role];
@@ -485,11 +503,11 @@ function coreReducer(s: AppState, a: Act): AppState {
 
     case "DEMAND_SUBMIT": {
       const code = "DP-2609-" + String(6 + s.demandPlans.length).padStart(3, "0");
-      const dp = { id: "DP-" + uid(), code, item: a.item, qty: a.qty, uom: a.uom, estCost: a.estCost, unit: a.unit, needBy: a.needBy, status: "SUBMITTED" as const, by: me.name };
+      const dp = { id: "DP-" + uid(), code, kind: a.kind, item: a.item, category: a.category, brand: a.brand, model: a.model, qty: a.qty, uom: a.uom, estCost: a.estCost, unit: a.unit, needBy: a.needBy, status: "SUBMITTED" as const, by: me.name };
       return {
         ...s, demandPlans: [dp, ...s.demandPlans],
-        audit: [mkAudit(me.name, s.role, "DEMAND.SUBMIT", "demand_plan", code, undefined, `${a.item} ${a.qty} ${a.uom}`), ...s.audit],
-        toasts: [...s.toasts, okToast(`Demand plan ${code} diajukan`)],
+        audit: [mkAudit(me.name, s.role, "DEMAND.SUBMIT", "demand_plan", code, undefined, `${a.kind} · ${a.item} ${a.qty} ${a.uom}`), ...s.audit],
+        toasts: [...s.toasts, okToast(`Demand plan ${code} (${a.kind === "ASET" ? "aset/CAPEX" : "BHP"}) diajukan`)],
       };
     }
 
@@ -504,17 +522,19 @@ function coreReducer(s: AppState, a: Act): AppState {
 
     case "DEMAND_CONSOLIDATE": {
       const dp = s.demandPlans.find((x) => x.id === a.id)!;
-      const item = s.items.find((i) => i.name === dp.item);
-      const sku = item?.sku ?? "NEW-" + uid().slice(0, 4);
+      const isAsset = dp.kind === "ASET";
+      const item = isAsset ? undefined : s.items.find((i) => i.name === dp.item);
+      const sku = isAsset ? undefined : item?.sku ?? "NEW-" + uid().slice(0, 4);
       const code = "PR-2608-" + String(12 + s.purchaseRequests.length).padStart(3, "0");
-      const line: PRLine = { sku, name: dp.item, qty: dp.qty, unitCost: Math.round(dp.estCost / dp.qty), isIT: isITSku(sku), stages: mkPendingStages(), revision: 0 };
+      const displayName = isAsset && dp.brand ? `${dp.item} — ${dp.brand} ${dp.model ?? ""}`.trim() : dp.item;
+      const line: PRLine = { id: "LN-" + uid(), kind: isAsset ? "ASSET" : "ITEM", sku, name: displayName, category: dp.category, brand: dp.brand, model: dp.model, qty: dp.qty, unitCost: Math.round(dp.estCost / dp.qty), isIT: isAsset ? (dp.category === "IT & Komputer") : isITSku(sku ?? ""), stages: mkPendingStages(), revision: 0 };
       const pr = { id: "PR-" + uid(), code, date: now(), requester: me.name, unit: dp.unit, needBy: dp.needBy, lines: [line], status: "IN_APPROVAL" as const };
       return {
         ...s,
         demandPlans: s.demandPlans.map((x) => (x.id === a.id ? { ...x, status: "CONSOLIDATED" } : x)),
         purchaseRequests: [pr, ...s.purchaseRequests],
-        audit: [mkAudit(me.name, s.role, "PROCUREMENT.PR", "purchase_request", code, `Dari demand plan ${dp.code}`, fmtIDR(dp.estCost)), ...s.audit],
-        notifs: [mkNotif("APPROVAL_PENDING", `PR ${code} menunggu persetujuan 3 tahap (${line.isIT ? "IT" : "UMUM"} → Keuangan → COO).`, sku), ...s.notifs],
+        audit: [mkAudit(me.name, s.role, "PROCUREMENT.PR", "purchase_request", code, `Dari demand plan ${dp.code} (${dp.kind})`, fmtIDR(dp.estCost)), ...s.audit],
+        notifs: [mkNotif("APPROVAL_PENDING", `PR ${code} (${isAsset ? "ASET/CAPEX" : "BHP"}) menunggu persetujuan 3 tahap (${line.isIT ? "IT" : "UMUM"} → Keuangan → COO).`, sku ?? dp.code), ...s.notifs],
         toasts: [...s.toasts, okToast(`PR ${code} dibuat dari ${dp.code} — masuk persetujuan 3 tahap`)],
       };
     }
@@ -524,7 +544,7 @@ function coreReducer(s: AppState, a: Act): AppState {
       const approved = pr.lines.filter((l) => lineState(l) === "APPROVED");
       const code = "PO-2608-" + String(91 + s.purchaseOrders.length).padStart(3, "0");
       const total = approved.reduce((x, l) => x + lineTotal(l), 0);
-      const po: PurchaseOrder = { id: "PO-" + uid(), code, date: now(), supplierId: a.supplierId, items: approved.map((l) => ({ sku: l.sku, name: l.name, qty: l.qty, price: l.unitCost })), total, eta: a.eta, status: "SENT", prRef: pr.code };
+      const po: PurchaseOrder = { id: "PO-" + uid(), code, date: now(), supplierId: a.supplierId, items: approved.map((l) => ({ kind: l.kind, sku: l.sku, name: l.name, category: l.category, brand: l.brand, model: l.model, qty: l.qty, price: l.unitCost })), total, eta: a.eta, status: "SENT", prRef: pr.code };
       return {
         ...s, purchaseOrders: [po, ...s.purchaseOrders],
         purchaseRequests: s.purchaseRequests.map((p) => (p.id === a.prId ? { ...p, status: "PO_CREATED" } : p)),
@@ -538,19 +558,42 @@ function coreReducer(s: AppState, a: Act): AppState {
       let next: AppState = { ...s, purchaseOrders: s.purchaseOrders.map((p) => (p.id === a.poId ? { ...p, status: "RECEIVED" } : p)) };
       const entries: LedgerEntry[] = [];
       const receipts = [...next.receipts];
+      const newEquipment: Equipment[] = [];
+      const newTimeline: TimelineEvent[] = [];
       for (const it of po.items) {
-        const item = s.items.find((i) => i.sku === it.sku);
-        if (!item) continue;
-        const newBal = item.stock + it.qty;
-        const ref = "GRN-2608-" + String(7 + receipts.length).padStart(3, "0");
-        receipts.unshift({ id: ref, ref, date: now(), supplierId: po.supplierId, sku: it.sku, qty: it.qty, batch: "PO" + po.code.slice(-3), expiry: null, poRef: po.code, by: me.name });
-        entries.push(mkLedger(it.sku, "RECEIPT", it.qty, newBal, me.name, ref, `Penerimaan ${po.code}`));
-        next = { ...next, items: next.items.map((i) => (i.sku === it.sku ? { ...i, stock: newBal } : i)) };
+        /* ── Barang inventori (BHP) → ledger + stok ── */
+        if (it.kind !== "ASSET") {
+          const item = s.items.find((i) => i.sku === it.sku);
+          if (!item) continue;
+          const newBal = item.stock + it.qty;
+          const ref = "GRN-2608-" + String(7 + receipts.length).padStart(3, "0");
+          receipts.unshift({ id: ref, ref, date: now(), supplierId: po.supplierId, sku: it.sku!, qty: it.qty, batch: "PO" + po.code.slice(-3), expiry: null, poRef: po.code, by: me.name });
+          entries.push(mkLedger(it.sku!, "RECEIPT", it.qty, newBal, me.name, ref, `Penerimaan ${po.code}`));
+          next = { ...next, items: next.items.map((i) => (i.sku === it.sku ? { ...i, stock: newBal } : i)) };
+          continue;
+        }
+        /* ── Aset (CAPEX) → daftarkan equipment, tertelusur ke PO (BR-001/002) ── */
+        for (let u = 0; u < it.qty; u++) {
+          const seq = s.equipment.length + newEquipment.length + 1;
+          const eq = mkEquipmentFromPo(seq, it.name, it.category ?? "Monitoring", it.price, po.supplierId, po.code, me.name, it.brand, it.model);
+          newEquipment.push(eq);
+          newTimeline.push(
+            mkTimeline(eq.id, "LIFECYCLE", `Registrasi aset dari pengadaan — ${eq.code}`, `${it.name} diterima via ${po.code} · ${fmtIDR(it.price)} · supplier tercantum di acquisition record.`, me.name, undefined, "REGISTERED"),
+            mkTimeline(eq.id, "PROCUREMENT", `GRN ${po.code} — aset diterima`, `PO ${po.code} (PR ${po.prRef}) · menunggu distribusi/assignment ke unit.`, me.name, it.price),
+          );
+        }
       }
+      const assetCount = newEquipment.length;
       return {
         ...next, receipts, ledger: [...entries, ...next.ledger],
-        audit: [mkAudit(me.name, s.role, "PROCUREMENT.GRN", "goods_receipt", po.code, undefined, `${po.items.length} line item diterima`), ...next.audit],
-        toasts: [...next.toasts, okToast(`${po.code} diterima — GRN & ledger diposting`)],
+        equipment: [...next.equipment, ...newEquipment],
+        timeline: [...newTimeline, ...next.timeline],
+        notifs: assetCount > 0 ? [mkNotif("REMINDER", `${assetCount} aset baru dari ${po.code} menunggu distribusi ke unit (Gudang Aset).`, newEquipment[0].id), ...next.notifs] : next.notifs,
+        audit: [
+          ...(assetCount > 0 ? newEquipment.map((eq) => mkAudit(me.name, s.role, "ASSET.REGISTER", "asset", eq.code, `Dari pengadaan ${po.code}`, `${eq.name} · ${fmtIDR(eq.acqCost)}`)) : []),
+          mkAudit(me.name, s.role, "PROCUREMENT.GRN", "goods_receipt", po.code, undefined, `${po.items.length} line diterima${assetCount ? ` · ${assetCount} aset didaftarkan` : ""}`), ...next.audit,
+        ],
+        toasts: [...next.toasts, okToast(assetCount > 0 ? `${po.code} diterima — ${assetCount} aset didaftarkan (Equipment 360°)` : `${po.code} diterima — GRN & ledger diposting`)],
       };
     }
 
@@ -558,18 +601,18 @@ function coreReducer(s: AppState, a: Act): AppState {
     case "PR_DECIDE": {
       const pr = s.purchaseRequests.find((p) => p.id === a.prId);
       if (!pr) return s;
-      const line = pr.lines.find((l) => l.sku === a.sku);
+      const line = pr.lines.find((l) => l.id === a.lineId);
       if (!line) return s;
       const idx = lineActiveStage(line);
       if (idx < 0) return s;
       const stages = line.stages.map((st, i) => (i === idx ? { status: (a.ok ? "APPROVED" : "REJECTED") as StageDecision["status"], approver: me.name, note: a.note, date: now() } : st));
       const upd: PRLine = { ...line, stages };
-      const lines = pr.lines.map((l) => (l.sku === a.sku ? upd : l));
+      const lines = pr.lines.map((l) => (l.id === a.lineId ? upd : l));
       const newPr = { ...pr, lines, status: prState({ ...pr, lines }) };
       const stageLabel = prStageLabels(line.isIT)[idx];
       return {
         ...s, purchaseRequests: s.purchaseRequests.map((p) => (p.id === a.prId ? newPr : p)),
-        audit: [mkAudit(me.name, s.role, a.ok ? "PROCUREMENT.APPROVE" : "PROCUREMENT.REJECT", "purchase_request", `${pr.code}/${line.sku}`, a.note || undefined, `Tahap ${idx + 1} ${stageLabel}: ${a.ok ? "APPROVED" : "REJECTED"}`), ...s.audit],
+        audit: [mkAudit(me.name, s.role, a.ok ? "PROCUREMENT.APPROVE" : "PROCUREMENT.REJECT", "purchase_request", `${pr.code}/${line.sku ?? line.id}`, a.note || undefined, `${line.kind === "ASSET" ? "ASET" : "BHP"} · Tahap ${idx + 1} ${stageLabel}: ${a.ok ? "APPROVED" : "REJECTED"}`), ...s.audit],
         toasts: [...s.toasts, okToast(`${a.ok ? "Disetujui" : "Ditolak"}: ${line.name} — tahap ${stageLabel}`, a.ok ? "ok" : "warn")],
       };
     }
@@ -597,15 +640,15 @@ function coreReducer(s: AppState, a: Act): AppState {
     case "PR_REVISE": {
       const pr = s.purchaseRequests.find((p) => p.id === a.prId);
       if (!pr) return s;
-      const line = pr.lines.find((l) => l.sku === a.sku);
+      const line = pr.lines.find((l) => l.id === a.lineId);
       if (!line) return s;
       const upd: PRLine = { ...line, qty: a.qty, revision: line.revision + 1, stages: mkPendingStages() };
-      const lines = pr.lines.map((l) => (l.sku === a.sku ? upd : l));
+      const lines = pr.lines.map((l) => (l.id === a.lineId ? upd : l));
       const newPr = { ...pr, lines, status: prState({ ...pr, lines }) };
       return {
         ...s, purchaseRequests: s.purchaseRequests.map((p) => (p.id === a.prId ? newPr : p)),
-        audit: [mkAudit(me.name, s.role, "PROCUREMENT.REVISE", "purchase_request", `${pr.code}/${line.sku}`, "Revisi sesuai saran approver", `qty → ${a.qty} (revisi ke-${upd.revision})`), ...s.audit],
-        notifs: [mkNotif("APPROVAL_PENDING", `PR ${pr.code} direvisi (${line.name} qty ${a.qty}) — approval diulang dari tahap 1.`, line.sku), ...s.notifs],
+        audit: [mkAudit(me.name, s.role, "PROCUREMENT.REVISE", "purchase_request", `${pr.code}/${line.sku ?? line.id}`, "Revisi sesuai saran approver", `qty → ${a.qty} (revisi ke-${upd.revision})`), ...s.audit],
+        notifs: [mkNotif("APPROVAL_PENDING", `PR ${pr.code} direvisi (${line.name} qty ${a.qty}) — approval diulang dari tahap 1.`, line.sku ?? pr.code), ...s.notifs],
         toasts: [...s.toasts, okToast(`${line.name} direvisi (qty ${a.qty}) — kembali ke tahap 1`)],
       };
     }
@@ -751,7 +794,7 @@ function coreReducer(s: AppState, a: Act): AppState {
 
     case "AUTO_PR": {
       const code = "PR-2608-" + String(12 + s.purchaseRequests.length).padStart(3, "0");
-      const lines: PRLine[] = a.lines.map((l) => ({ sku: l.sku, name: l.name, qty: l.qty, unitCost: l.estCost, isIT: isITSku(l.sku), stages: mkPendingStages(), revision: 0 }));
+      const lines: PRLine[] = a.lines.map((l) => ({ id: "LN-" + uid(), kind: "ITEM", sku: l.sku, name: l.name, qty: l.qty, unitCost: l.estCost, isIT: isITSku(l.sku), stages: mkPendingStages(), revision: 0 }));
       const total = lines.reduce((x, l) => x + lineTotal(l), 0);
       const pr = { id: "PR-" + uid(), code, date: now(), requester: "AI Procurement Engine", unit: "Multi-Unit (AI)", needBy: d(30), lines, status: "IN_APPROVAL" as const };
       return {
@@ -969,7 +1012,8 @@ function emitEvent(a: Act, s: AppState): EventEnvelope | null {
     case "OPNAME_FINALIZE": et = "inventory.stock_opname.completed"; agg = "inventory"; id = a.id; pl = "sesi diverifikasi & diposting"; break;
     case "APPROVE": et = a.ok ? "approval.granted" : "approval.rejected"; agg = "approval"; id = a.id; pl = a.note || (a.ok ? "disetujui tanpa catatan" : "ditolak"); break;
     case "PO_CREATE": et = "procurement.po.created"; agg = "procurement"; id = a.prId; pl = `supplier ${a.supplierId} · ETA ${a.eta}`; break;
-    case "PR_DECIDE": et = a.ok ? "procurement.line.approved" : "procurement.line.rejected"; agg = "procurement"; id = a.sku; pl = a.note.slice(0, 52) || (a.ok ? "lolos tahap" : "ditolak tahap"); break;
+    case "PR_DECIDE": et = a.ok ? "procurement.line.approved" : "procurement.line.rejected"; agg = "procurement"; id = a.lineId; pl = a.note.slice(0, 52) || (a.ok ? "lolos tahap" : "ditolak tahap"); break;
+    case "PO_RECEIVE": et = "procurement.goods.received"; agg = "procurement"; id = a.poId; pl = "GRN diposting"; break;
     case "FORM_SAVE": et = "config.form.saved"; agg = "asset"; id = a.template.id; pl = `${a.template.name} · ${a.template.fields.length} field`; break;
     default: return null;
   }
@@ -1005,12 +1049,12 @@ interface Api {
   receive: (sku: string, qty: number, supplierId: string, batch: string, expiry: string, poRef: string) => void;
   distribute: (sku: string, qty: number, dest: string, strategy: "FIFO" | "FEFO") => void;
   createOpname: () => void; countOpname: (id: string, sku: string, counted: number) => void; finalizeOpname: (id: string) => void;
-  submitDemand: (item: string, qty: number, uom: string, estCost: number, unit: string, needBy: string) => void;
+  submitDemand: (p: { kind: "BHP" | "ASET"; item: string; category?: string; brand?: string; model?: string; qty: number; uom: string; estCost: number; unit: string; needBy: string }) => void;
   reviewDemand: (id: string) => void; consolidateDemand: (id: string) => void;
   createPo: (prId: string, supplierId: string, eta: string) => void; receivePo: (poId: string) => void;
-  prDecide: (prId: string, sku: string, ok: boolean, note: string) => void;
+  prDecide: (prId: string, lineId: string, ok: boolean, note: string) => void;
   prDecideAll: (prId: string, ok: boolean, note: string) => void;
-  prRevise: (prId: string, sku: string, qty: number) => void;
+  prRevise: (prId: string, lineId: string, qty: number) => void;
   addTechnician: (p: { name: string; specialty: string; cert: string; phone: string; vendor: boolean }) => void;
   addSupplier: (p: { name: string; service: string; contractUntil: string; contact: string }) => void;
   addAccessory: (p: { name: string; eqId: string; qty: number; condition: Equipment["condition"]; note: string }) => void;
@@ -1066,14 +1110,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     createOpname: () => dispatch({ t: "OPNAME_CREATE" }),
     countOpname: (id, sku, counted) => dispatch({ t: "OPNAME_COUNT", id, sku, counted }),
     finalizeOpname: (id) => dispatch({ t: "OPNAME_FINALIZE", id }),
-    submitDemand: (item, qty, uom, estCost, unit, needBy) => dispatch({ t: "DEMAND_SUBMIT", item, qty, uom, estCost, unit, needBy }),
+    submitDemand: (p) => dispatch({ t: "DEMAND_SUBMIT", ...p }),
     reviewDemand: (id) => dispatch({ t: "DEMAND_REVIEW", id }),
     consolidateDemand: (id) => dispatch({ t: "DEMAND_CONSOLIDATE", id }),
     createPo: (prId, supplierId, eta) => dispatch({ t: "PO_CREATE", prId, supplierId, eta }),
     receivePo: (poId) => dispatch({ t: "PO_RECEIVE", poId }),
-    prDecide: (prId, sku, ok, note) => dispatch({ t: "PR_DECIDE", prId, sku, ok, note }),
+    prDecide: (prId, lineId, ok, note) => dispatch({ t: "PR_DECIDE", prId, lineId, ok, note }),
     prDecideAll: (prId, ok, note) => dispatch({ t: "PR_DECIDE_ALL", prId, ok, note }),
-    prRevise: (prId, sku, qty) => dispatch({ t: "PR_REVISE", prId, sku, qty }),
+    prRevise: (prId, lineId, qty) => dispatch({ t: "PR_REVISE", prId, lineId, qty }),
     addTechnician: (p) => dispatch({ t: "ADD_TECH", ...p }),
     addSupplier: (p) => dispatch({ t: "ADD_SUPPLIER", ...p }),
     addAccessory: (p) => dispatch({ t: "ADD_ACCESSORY", ...p }),

@@ -40,28 +40,38 @@ export default function Procurement() {
   const { s, submitDemand, reviewDemand, consolidateDemand, createPo, receivePo, prDecide, prDecideAll, prRevise } = useApp();
   const [tab, setTab] = useState("pr");
 
-  const [decision, setDecision] = useState<{ prId: string; sku: string; ok: boolean } | null>(null);
+  const [decision, setDecision] = useState<{ prId: string; lineId: string; ok: boolean } | null>(null);
   const [note, setNote] = useState("");
   const [decideAll, setDecideAll] = useState<{ prId: string; ok: boolean } | null>(null);
   const [allNote, setAllNote] = useState("");
-  const [revise, setRevise] = useState<{ prId: string; sku: string } | null>(null);
+  const [revise, setRevise] = useState<{ prId: string; lineId: string } | null>(null);
   const [reviseQty, setReviseQty] = useState("");
   const [poFor, setPoFor] = useState<string | null>(null);
   const [supplierId, setSupplierId] = useState("S-03");
   const [eta, setEta] = useState(() => new Date(Date.now() + 14 * 864e5).toISOString().slice(0, 10));
   const [dpOpen, setDpOpen] = useState(false);
-  const [f, setF] = useState({ item: "Handscoon Nitrile M", qty: "100", uom: "box", estCost: "6800000", unit: "Seluruh Unit", needBy: new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10) });
+  const [f, setF] = useState({ kind: "BHP" as "BHP" | "ASET", item: "Handscoon Nitrile M", category: "Monitoring", brand: "", model: "", qty: "100", uom: "box", estCost: "6800000", unit: "Seluruh Unit", needBy: new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10) });
   const [err, setErr] = useState("");
 
   const itemOpts = [...s.items.map((i) => i.name), ...s.spareParts.map((p) => p.name)];
   const poPr = s.purchaseRequests.find((p) => p.id === poFor);
-  const decLine = decision ? s.purchaseRequests.find((p) => p.id === decision.prId)?.lines.find((l) => l.sku === decision.sku) : undefined;
-  const revLine = revise ? s.purchaseRequests.find((p) => p.id === revise.prId)?.lines.find((l) => l.sku === revise.sku) : undefined;
+  const decLine = decision ? s.purchaseRequests.find((p) => p.id === decision.prId)?.lines.find((l) => l.id === decision.lineId) : undefined;
+  const revLine = revise ? s.purchaseRequests.find((p) => p.id === revise.prId)?.lines.find((l) => l.id === revise.lineId) : undefined;
 
   const submitDp = () => {
     if (!(Number(f.qty) > 0)) return setErr("Qty wajib > 0.");
     if (!(Number(f.estCost) > 0)) return setErr("Estimasi biaya wajib > 0.");
-    submitDemand(f.item, Number(f.qty), f.uom, Number(f.estCost), f.unit, new Date(f.needBy + "T09:00:00").toISOString());
+    if (f.kind === "ASET" && !f.item.trim()) return setErr("Nama aset wajib diisi.");
+    if (f.kind === "ASET" && !f.brand.trim()) return setErr("Merek aset wajib diisi.");
+    submitDemand({
+      kind: f.kind,
+      item: f.kind === "ASET" ? f.item.trim() : f.item,
+      category: f.kind === "ASET" ? f.category : undefined,
+      brand: f.kind === "ASET" ? f.brand.trim() || undefined : undefined,
+      model: f.kind === "ASET" ? f.model.trim() || undefined : undefined,
+      qty: Number(f.qty), uom: f.kind === "ASET" ? "unit" : f.uom,
+      estCost: Number(f.estCost), unit: f.unit, needBy: new Date(f.needBy + "T09:00:00").toISOString(),
+    });
     setDpOpen(false); setErr("");
   };
 
@@ -71,7 +81,7 @@ export default function Procurement() {
   const submitDecision = () => {
     if (!decision) return;
     if (!decision.ok && note.trim().length < 4) return setErr("Catatan/saran wajib diisi saat menolak.");
-    prDecide(decision.prId, decision.sku, decision.ok, note.trim());
+    prDecide(decision.prId, decision.lineId, decision.ok, note.trim());
     setDecision(null); setNote(""); setErr("");
   };
   const submitAll = () => {
@@ -82,7 +92,7 @@ export default function Procurement() {
   const submitRevise = () => {
     if (!revise) return;
     if (!(Number(reviseQty) > 0)) return setErr("Qty revisi wajib > 0.");
-    prRevise(revise.prId, revise.sku, Number(reviseQty));
+    prRevise(revise.prId, revise.lineId, Number(reviseQty));
     setRevise(null); setReviseQty(""); setErr("");
   };
 
@@ -99,7 +109,7 @@ export default function Procurement() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="font-display text-[22px] font-black tracking-tight text-ink">Procurement</h1>
-          <p className="text-xs text-mute">Demand → PR → Persetujuan 3 tahap (IT/UMUM → Keuangan → COO) → PO → Goods Receipt (ledger)</p>
+          <p className="text-xs text-mute">Semua barang: BHP (→ ledger) & aset/CAPEX (→ registrasi equipment) · Demand → PR → 3 tahap → PO → GRN</p>
         </div>
         <BtnPrimary disabled={!canPlan(s.role)} title={!canPlan(s.role) ? "Butuh role Pengelola Inventory / Kepala Gudang" : undefined} onClick={() => setDpOpen(true)}>
           <IcPlus size={13} /> Demand plan baru
@@ -153,12 +163,14 @@ export default function Procurement() {
                         const canAct = activeRole === s.role;
                         const rejNotes = l.stages.filter((st) => st.status === "REJECTED" && st.note);
                         return (
-                          <div key={l.sku} className={`rounded-md border p-2.5 ${ls === "REJECTED" ? "border-danger/40 bg-dangerbg/30" : ls === "APPROVED" ? "border-ok/30 bg-okbg/25" : "border-line bg-canvas/50"}`}>
+                          <div key={l.id} className={`rounded-md border p-2.5 ${ls === "REJECTED" ? "border-danger/40 bg-dangerbg/30" : ls === "APPROVED" ? "border-ok/30 bg-okbg/25" : "border-line bg-canvas/50"}`}>
                             <div className="flex flex-wrap items-center justify-between gap-2">
-                              <div className="flex min-w-0 items-center gap-2">
+                              <div className="flex min-w-0 flex-wrap items-center gap-2">
                                 <span className="text-[12.5px] font-bold text-ink">{l.name}</span>
-                                {l.isIT && <Chip tone="info" className="!text-[8.5px]">IT</Chip>}
-                                <span className="font-mono text-[10px] text-mute">{l.sku} · ×{l.qty}{l.revision > 0 ? ` · rev-${l.revision}` : ""}</span>
+                                {l.kind === "ASSET"
+                                  ? <Chip tone="pine" className="!text-[8.5px]">ASET · CAPEX</Chip>
+                                  : l.isIT ? <Chip tone="info" className="!text-[8.5px]">IT</Chip> : <Chip tone="neutral" className="!text-[8.5px]">BHP</Chip>}
+                                <span className="font-mono text-[10px] text-mute">{l.sku ?? l.category ?? ""}{l.sku || l.category ? " · " : ""}×{l.qty}{l.revision > 0 ? ` · rev-${l.revision}` : ""}</span>
                               </div>
                               <span className="num font-mono text-[11px] font-bold text-ink2">{fmtIDR(lineTotal(l))}</span>
                             </div>
@@ -166,13 +178,13 @@ export default function Procurement() {
                               <StageTracker line={l} />
                               <div className="flex items-center gap-1.5">
                                 {ls === "REJECTED" && canRevise(s.role) && (
-                                  <BtnSm onClick={() => { setRevise({ prId: pr.id, sku: l.sku }); setReviseQty(String(l.qty)); setErr(""); }} className="!border-warn/60 !text-warn"><IcWrench size={11} /> Revisi</BtnSm>
+                                  <BtnSm onClick={() => { setRevise({ prId: pr.id, lineId: l.id }); setReviseQty(String(l.qty)); setErr(""); }} className="!border-warn/60 !text-warn"><IcWrench size={11} /> Revisi</BtnSm>
                                 )}
                                 {ls === "IN_APPROVAL" && (
                                   canAct ? (
                                     <>
-                                      <BtnSm onClick={() => { setDecision({ prId: pr.id, sku: l.sku, ok: true }); setNote(""); setErr(""); }} className="!border-ok/60 !text-ok"><IcCheck size={11} /> Setujui</BtnSm>
-                                      <BtnSm onClick={() => { setDecision({ prId: pr.id, sku: l.sku, ok: false }); setNote(""); setErr(""); }} className="!border-danger/60 !text-danger"><IcClose size={11} /> Tolak</BtnSm>
+                                      <BtnSm onClick={() => { setDecision({ prId: pr.id, lineId: l.id, ok: true }); setNote(""); setErr(""); }} className="!border-ok/60 !text-ok"><IcCheck size={11} /> Setujui</BtnSm>
+                                      <BtnSm onClick={() => { setDecision({ prId: pr.id, lineId: l.id, ok: false }); setNote(""); setErr(""); }} className="!border-danger/60 !text-danger"><IcClose size={11} /> Tolak</BtnSm>
                                     </>
                                   ) : (
                                     <span className="font-mono text-[9.5px] text-mute">menunggu <b className="text-warn">{activeRole}</b></span>
@@ -217,7 +229,7 @@ export default function Procurement() {
               <table className="w-full min-w-[900px] text-left">
                 <thead>
                   <tr className="border-b border-line bg-canvas/70 font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-mute">
-                    <th className="px-3 py-2.5">Plan</th><th className="px-3 py-2.5">Item</th><th className="px-3 py-2.5 text-right">Qty</th>
+                    <th className="px-3 py-2.5">Plan</th><th className="px-3 py-2.5">Jenis</th><th className="px-3 py-2.5">Item</th><th className="px-3 py-2.5 text-right">Qty</th>
                     <th className="px-3 py-2.5 text-right">Est. biaya</th><th className="px-3 py-2.5">Unit peminta</th><th className="px-3 py-2.5">Need by</th>
                     <th className="px-3 py-2.5">Status</th><th className="px-3 py-2.5">Aksi</th>
                   </tr>
@@ -226,7 +238,11 @@ export default function Procurement() {
                   {s.demandPlans.map((dp) => (
                     <tr key={dp.id} className="transition hover:bg-pine-50/60">
                       <td className="px-3 py-2.5"><p className="font-mono text-[11.5px] font-bold text-pine-700">{dp.code}</p><p className="font-mono text-[9.5px] text-mute">oleh {dp.by}</p></td>
-                      <td className="px-3 py-2.5 text-[12.5px] font-bold text-ink">{dp.item}</td>
+                      <td className="px-3 py-2.5">{dp.kind === "ASET" ? <Chip tone="pine" className="!text-[8.5px]">ASET</Chip> : <Chip tone="neutral" className="!text-[8.5px]">BHP</Chip>}</td>
+                      <td className="px-3 py-2.5">
+                        <p className="text-[12.5px] font-bold text-ink">{dp.item}</p>
+                        {dp.kind === "ASET" && dp.brand && <p className="font-mono text-[9.5px] text-mute">{dp.category} · {dp.brand} {dp.model ?? ""}</p>}
+                      </td>
                       <td className="num px-3 py-2.5 text-right font-mono text-[12px] text-ink2">{dp.qty} {dp.uom}</td>
                       <td className="num px-3 py-2.5 text-right font-mono text-[11px] text-ink2">{fmtIDRCompact(dp.estCost)}</td>
                       <td className="px-3 py-2.5 text-[11.5px] text-ink2">{dp.unit}</td>
@@ -261,10 +277,13 @@ export default function Procurement() {
                       <StatusChip status={p.status} />
                     </div>
                     <div className="mt-2.5 space-y-1">
-                      {p.items.map((it) => (
-                        <div key={it.sku} className="flex items-center justify-between rounded-md border border-line bg-canvas/50 px-2.5 py-1.5">
-                          <span className="text-[12px] font-semibold text-ink">{it.name} <span className="font-mono text-[10px] text-mute">×{it.qty}</span></span>
-                          <span className="num font-mono text-[10.5px] text-ink2">{fmtIDR(it.qty * it.price)}</span>
+                      {p.items.map((it, ii) => (
+                        <div key={it.sku ?? ii} className="flex items-center justify-between gap-2 rounded-md border border-line bg-canvas/50 px-2.5 py-1.5">
+                          <span className="flex min-w-0 items-center gap-1.5 text-[12px] font-semibold text-ink">
+                            {it.kind === "ASSET" ? <Chip tone="pine" className="!text-[8px]">ASET</Chip> : <Chip tone="neutral" className="!text-[8px]">BHP</Chip>}
+                            <span className="truncate">{it.name}</span> <span className="shrink-0 font-mono text-[10px] text-mute">×{it.qty}</span>
+                          </span>
+                          <span className="num shrink-0 font-mono text-[10.5px] text-ink2">{fmtIDR(it.qty * it.price)}</span>
                         </div>
                       ))}
                     </div>
@@ -273,7 +292,9 @@ export default function Procurement() {
                       {p.status === "SENT" ? (
                         <div className="flex items-center gap-2">
                           <span className={`font-mono text-[10px] ${etaD < 3 ? "font-bold text-warn" : "text-mute"}`}>ETA {fmtDate(p.eta)}</span>
-                          <BtnSm disabled={!canOps(s.role)} title={!canOps(s.role) ? "Butuh role gudang/inventory" : undefined} onClick={() => receivePo(p.id)} className="!border-ok/50 !text-ok"><IcTruck size={12} /> Terima (GRN)</BtnSm>
+                          <BtnSm disabled={!canOps(s.role)} title={!canOps(s.role) ? "Butuh role gudang/inventory" : undefined} onClick={() => receivePo(p.id)} className="!border-ok/50 !text-ok">
+                            <IcTruck size={12} /> {p.items.some((it) => it.kind === "ASSET") ? "Terima & Daftarkan Aset" : "Terima (GRN)"}
+                          </BtnSm>
                         </div>
                       ) : <span className="font-mono text-[10px] font-bold text-ok">diterima ✓</span>}
                     </div>
@@ -285,14 +306,14 @@ export default function Procurement() {
         </div>
       </Card>
 
-      <p className="font-mono text-[10.5px] text-mute">Persetujuan dicatat per-barang di audit trail · GRN memposting baris RECEIPT ke ledger append-only (BR-003).</p>
+      <p className="font-mono text-[10.5px] text-mute">Persetujuan dicatat per-barang di audit trail · GRN BHP memposting RECEIPT ke ledger (BR-003) · GRN aset mendaftarkan equipment tertelusur ke PO (BR-001/002).</p>
 
       {/* decision modal (approve / reject single line) */}
       <Modal open={!!decision} onClose={() => setDecision(null)} kicker={decision?.ok ? "Approve baris" : "Tolak baris (beri saran)"} title={decLine?.name ?? ""}
         footer={<><BtnGhost onClick={() => setDecision(null)}>Batal</BtnGhost>
           <BtnPrimary onClick={submitDecision} className={decision && !decision.ok ? "!bg-danger hover:!bg-[#a03023]" : ""}>{decision?.ok ? <><IcCheck size={13} /> Setujui</> : <><IcClose size={13} /> Tolak</>}</BtnPrimary></>}>
         <div className="space-y-3.5">
-          {decLine && <p className="rounded-md border border-line bg-canvas/60 px-3 py-2 font-mono text-[11px] text-ink2">{decLine.sku} · ×{decLine.qty} = <b>{fmtIDR(lineTotal(decLine))}</b></p>}
+          {decLine && <p className="rounded-md border border-line bg-canvas/60 px-3 py-2 font-mono text-[11px] text-ink2">{decLine.kind === "ASSET" ? `ASET · ${decLine.category ?? ""}` : decLine.sku} · ×{decLine.qty} = <b>{fmtIDR(lineTotal(decLine))}</b></p>}
           <div>
             <Label>Catatan {decision?.ok ? "(opsional)" : "/ saran revisi (wajib)"}</Label>
             <TextArea value={note} onChange={(e) => setNote(e.target.value)} placeholder={decision?.ok ? "cth: sesuai kebutuhan" : "cth: qty terlalu banyak — cukup 6 unit"} />
@@ -328,16 +349,43 @@ export default function Procurement() {
       <Modal open={dpOpen} onClose={() => setDpOpen(false)} kicker="Demand planning" title="Rencana kebutuhan baru"
         footer={<><BtnGhost onClick={() => setDpOpen(false)}>Batal</BtnGhost><BtnPrimary onClick={submitDp}><IcPlus size={13} /> Ajukan demand</BtnPrimary></>}>
         <div className="space-y-3.5">
-          <div><Label>Item</Label><Select value={f.item} onChange={(e) => setF({ ...f, item: e.target.value })}>{itemOpts.map((i) => <option key={i}>{i}</option>)}</Select></div>
+          <div>
+            <Label>Jenis pengadaan</Label>
+            <div className="grid grid-cols-2 gap-2">
+              <button onClick={() => setF({ ...f, kind: "BHP" })}
+                className={`rounded-md border px-2 py-2 text-left transition ${f.kind === "BHP" ? "border-pine-600 bg-pine-50" : "border-line bg-card hover:border-line2"}`}>
+                <p className={`font-display text-[12px] font-bold ${f.kind === "BHP" ? "text-pine-700" : "text-ink2"}`}>BHP / Inventori</p>
+                <p className="font-mono text-[9px] text-mute">barang habis pakai → ledger</p>
+              </button>
+              <button onClick={() => setF({ ...f, kind: "ASET", uom: "unit" })}
+                className={`rounded-md border px-2 py-2 text-left transition ${f.kind === "ASET" ? "border-pine-600 bg-pine-50" : "border-line bg-card hover:border-line2"}`}>
+                <p className={`font-display text-[12px] font-bold ${f.kind === "ASET" ? "text-pine-700" : "text-ink2"}`}>Aset / CAPEX</p>
+                <p className="font-mono text-[9px] text-mute">alkes & alat → registrasi aset</p>
+              </button>
+            </div>
+          </div>
+          {f.kind === "BHP" ? (
+            <div><Label>Item</Label><Select value={f.item} onChange={(e) => setF({ ...f, item: e.target.value })}>{itemOpts.map((i) => <option key={i}>{i}</option>)}</Select></div>
+          ) : (
+            <>
+              <div><Label>Nama aset *</Label><Input value={f.item} onChange={(e) => setF({ ...f, item: e.target.value })} placeholder="cth: Ventilator Transport" /></div>
+              <div className="grid grid-cols-3 gap-3">
+                <div><Label>Kategori</Label><Select value={f.category} onChange={(e) => setF({ ...f, category: e.target.value })}>{["Monitoring", "Life Support", "Imaging", "Laboratorium", "Sterilisasi", "Infusion", "Poliklinik", "IT & Komputer"].map((c) => <option key={c}>{c}</option>)}</Select></div>
+                <div><Label>Merek *</Label><Input value={f.brand} onChange={(e) => setF({ ...f, brand: e.target.value })} placeholder="Dräger" /></div>
+                <div><Label>Model</Label><Input value={f.model} onChange={(e) => setF({ ...f, model: e.target.value })} placeholder="Oxylog 3000" /></div>
+              </div>
+            </>
+          )}
           <div className="grid grid-cols-3 gap-3">
             <div><Label>Qty *</Label><Input type="number" value={f.qty} onChange={(e) => setF({ ...f, qty: e.target.value })} /></div>
-            <div><Label>UoM</Label><Select value={f.uom} onChange={(e) => setF({ ...f, uom: e.target.value })}>{["box", "pcs", "set", "pack", "flabot", "roll", "unit"].map((u) => <option key={u}>{u}</option>)}</Select></div>
+            <div><Label>UoM</Label>{f.kind === "ASET" ? <Input value="unit" disabled /> : <Select value={f.uom} onChange={(e) => setF({ ...f, uom: e.target.value })}>{["box", "pcs", "set", "pack", "flabot", "roll", "unit"].map((u) => <option key={u}>{u}</option>)}</Select>}</div>
             <div><Label>Est. biaya *</Label><Input type="number" value={f.estCost} onChange={(e) => setF({ ...f, estCost: e.target.value })} /></div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div><Label>Unit peminta</Label><Input value={f.unit} onChange={(e) => setF({ ...f, unit: e.target.value })} /></div>
             <div><Label>Need by</Label><Input type="date" value={f.needBy} onChange={(e) => setF({ ...f, needBy: e.target.value })} /></div>
           </div>
+          {f.kind === "ASET" && <p className="rounded-md bg-infobg px-3 py-2 text-xs font-semibold text-info">Aset yang disetujui & diterima (GRN) akan <b>otomatis terdaftar</b> di Equipment Registry dengan nomor aset baru.</p>}
           {err && <p className="rounded-md bg-dangerbg px-3 py-2 text-xs font-semibold text-danger">{err}</p>}
         </div>
       </Modal>

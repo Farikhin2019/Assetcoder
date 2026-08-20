@@ -224,53 +224,63 @@ export const APPROVALS: Approval[] = [
   { id: "APR-3", type: "REPAIR", ref: "RPR-2603", requester: "Rudi Hartawan (Teknisi)", value: 6_350_000, risk: "MEDIUM", summary: "Repair Hematology Analyzer — sampling valve + jasa (spare part stock 0, perlu pengadaan)", matrix: ["Kepala Teknisi", "Pengelola Aset"], status: "PENDING", date: d(-3, 9), meta: { eqId: "EQ-10" } },
 ];
 
-/* ── Phase 2: procurement chain ── */
+/* ── Phase 2: procurement chain (BHP + ASET/CAPEX) ── */
 export const DEMAND_PLANS: DemandPlan[] = [
-  { id: "DP-1", code: "DP-2609-001", item: "Handscoon Nitrile M", qty: 600, uom: "box", estCost: 40_800_000, unit: "Seluruh Unit", needBy: d(21), status: "REVIEWED", by: "Kepala Gudang" },
-  { id: "DP-2", code: "DP-2609-002", item: "XN-1000 Sampling Valve", qty: 2, uom: "pcs", estCost: 10_800_000, unit: "Laboratorium", needBy: d(14), status: "SUBMITTED", by: "Rudi Hartawan" },
-  { id: "DP-3", code: "DP-2609-003", item: "NaCl 0.9% 500 ml", qty: 400, uom: "flabot", estCost: 5_920_000, unit: "IGD & Rawat Inap", needBy: d(30), status: "SUBMITTED", by: "Ns. Dewi Lestari" },
-  { id: "DP-4", code: "DP-2609-004", item: "Autoclave Door Gasket GE46", qty: 2, uom: "set", estCost: 6_200_000, unit: "CSSD", needBy: d(10), status: "DRAFT", by: "Maya Anggraini" },
-  { id: "DP-5", code: "DP-2608-005", item: "SpO2 Extension Cable", qty: 10, uom: "pcs", estCost: 7_800_000, unit: "ICU", needBy: d(-5), status: "CONSOLIDATED", by: "Ns. Dewi Lestari" },
+  { id: "DP-1", code: "DP-2609-001", kind: "BHP", item: "Handscoon Nitrile M", qty: 600, uom: "box", estCost: 40_800_000, unit: "Seluruh Unit", needBy: d(21), status: "REVIEWED", by: "Kepala Gudang" },
+  { id: "DP-2", code: "DP-2609-002", kind: "BHP", item: "XN-1000 Sampling Valve", qty: 2, uom: "pcs", estCost: 10_800_000, unit: "Laboratorium", needBy: d(14), status: "SUBMITTED", by: "Rudi Hartawan" },
+  { id: "DP-3", code: "DP-2609-003", kind: "BHP", item: "NaCl 0.9% 500 ml", qty: 400, uom: "flabot", estCost: 5_920_000, unit: "IGD & Rawat Inap", needBy: d(30), status: "SUBMITTED", by: "Ns. Dewi Lestari" },
+  { id: "DP-4", code: "DP-2609-004", kind: "BHP", item: "Autoclave Door Gasket GE46", qty: 2, uom: "set", estCost: 6_200_000, unit: "CSSD", needBy: d(10), status: "DRAFT", by: "Maya Anggraini" },
+  { id: "DP-5", code: "DP-2608-005", kind: "BHP", item: "SpO2 Extension Cable", qty: 10, uom: "pcs", estCost: 7_800_000, unit: "ICU", needBy: d(-5), status: "CONSOLIDATED", by: "Ns. Dewi Lestari" },
+  { id: "DP-6", code: "DP-2609-006", kind: "ASET", item: "Ventilator Transport", category: "Life Support", brand: "Dräger", model: "Oxylog 3000 Plus", qty: 2, uom: "unit", estCost: 890_000_000, unit: "IGD", needBy: d(45), status: "REVIEWED", by: "dr. Bimo Prasetyo" },
+  { id: "DP-7", code: "DP-2609-007", kind: "ASET", item: "USG Portable", category: "Imaging", brand: "GE Healthcare", model: "Versana Balance", qty: 1, uom: "unit", estCost: 415_000_000, unit: "Poliklinik", needBy: d(60), status: "SUBMITTED", by: "dr. Maya Safitri, Sp.OG" },
+  { id: "DP-8", code: "DP-2609-008", kind: "ASET", item: "Patient Monitor", category: "Monitoring", brand: "Philips", model: "IntelliVue MX450", qty: 3, uom: "unit", estCost: 645_000_000, unit: "ICU", needBy: d(75), status: "SUBMITTED", by: "Ns. Dewi Lestari" },
 ];
 
 const st = (status: PRStageStatus, approver = "", note = "", dd = 0): StageDecision =>
   ({ status, approver, note, date: dd ? d(dd, 10) : "" });
-const mkLine = (sku: string, name: string, qty: number, unitCost: number, stages: StageDecision[], revision = 0): PRLine =>
-  ({ sku, name, qty, unitCost, isIT: isITSku(sku), stages, revision });
+const mkLine = (kind: "ITEM" | "ASSET", sku: string, name: string, qty: number, unitCost: number, stages: StageDecision[], revision = 0, extra?: { category?: string; brand?: string; model?: string }): PRLine =>
+  ({ id: "LN-" + uid(), kind, sku: kind === "ASSET" ? undefined : sku, name, qty, unitCost, isIT: kind === "ITEM" ? isITSku(sku) : (extra?.category ?? "") === "IT & Komputer", stages, revision, ...extra });
 
 export const PURCHASE_REQUESTS: PurchaseRequest[] = [
   {
     id: "PR-3", code: "PR-2608-012", date: d(0, 7), requester: "UPBJ Pengadaan", unit: "Multi-Unit", needBy: d(21), status: "IN_APPROVAL",
     lines: [
-      mkLine("BHP-0012", "Handscoon Nitrile M", 600, 68_000, [st("APPROVED", "Galih Saputra", "Sesuai ROP, lanjut", 0), st("PENDING"), st("PENDING")]),
-      mkLine("IT-0901", "PC Workstation Radiologi (PACS)", 4, 18_500_000, [st("PENDING"), st("PENDING"), st("PENDING")]),
+      mkLine("ITEM", "BHP-0012", "Handscoon Nitrile M", 600, 68_000, [st("APPROVED", "Galih Saputra", "Sesuai ROP, lanjut", 0), st("PENDING"), st("PENDING")]),
+      mkLine("ITEM", "IT-0901", "PC Workstation Radiologi (PACS)", 4, 18_500_000, [st("PENDING"), st("PENDING"), st("PENDING")]),
     ],
   },
   {
     id: "PR-4", code: "PR-2608-013", date: d(-1, 9), requester: "Ns. Dewi Lestari", unit: "ICU", needBy: d(14), status: "REJECTED",
     lines: [
-      mkLine("IT-0902", "Printer Gelang Pasien", 10, 4_200_000, [st("APPROVED", "Dian Pratiwi", "Spek OK", -1), st("REJECTED", "Ratna Dewi, S.E.", "Qty terlalu banyak — cukup 6 unit untuk 6 bed", -1), st("PENDING")]),
-      mkLine("BHP-0031", "Spuit 3 cc Terumo", 1500, 2_350, [st("APPROVED", "Galih Saputra", "OK", -1), st("APPROVED", "Ratna Dewi, S.E.", "Dalam budget", -1), st("PENDING")]),
+      mkLine("ITEM", "IT-0902", "Printer Gelang Pasien", 10, 4_200_000, [st("APPROVED", "Dian Pratiwi", "Spek OK", -1), st("REJECTED", "Ratna Dewi, S.E.", "Qty terlalu banyak — cukup 6 unit untuk 6 bed", -1), st("PENDING")]),
+      mkLine("ITEM", "BHP-0031", "Spuit 3 cc Terumo", 1500, 2_350, [st("APPROVED", "Galih Saputra", "OK", -1), st("APPROVED", "Ratna Dewi, S.E.", "Dalam budget", -1), st("PENDING")]),
     ],
   },
   {
     id: "PR-2", code: "PR-2608-011", date: d(-2, 8), requester: "UPBJ Pengadaan", unit: "IGD & Rawat Inap", needBy: d(30), status: "APPROVED",
     lines: [
-      mkLine("FAR-1102", "NaCl 0.9% 500 ml", 400, 14_800, [st("APPROVED", "Galih Saputra", "Kebutuhan rutin", -2), st("APPROVED", "Ratna Dewi, S.E.", "Budget tersedia", -2), st("APPROVED", "dr. H. Ahmad Fauzi, MARS", "Setuju", -1)]),
+      mkLine("ITEM", "FAR-1102", "NaCl 0.9% 500 ml", 400, 14_800, [st("APPROVED", "Galih Saputra", "Kebutuhan rutin", -2), st("APPROVED", "Ratna Dewi, S.E.", "Budget tersedia", -2), st("APPROVED", "dr. H. Ahmad Fauzi, MARS", "Setuju", -1)]),
     ],
   },
   {
     id: "PR-1", code: "PR-2608-009", date: d(-9, 10), requester: "UPBJ Pengadaan", unit: "ICU", needBy: d(-2), status: "PO_CREATED",
     lines: [
-      mkLine("SP-PHL-MX-EXT", "SpO2 Extension Cable", 10, 780_000, [st("APPROVED", "Galih Saputra", "", -9), st("APPROVED", "Ratna Dewi, S.E.", "", -8), st("APPROVED", "dr. H. Ahmad Fauzi, MARS", "", -8)], 0),
+      mkLine("ITEM", "SP-PHL-MX-EXT", "SpO2 Extension Cable", 10, 780_000, [st("APPROVED", "Galih Saputra", "", -9), st("APPROVED", "Ratna Dewi, S.E.", "", -8), st("APPROVED", "dr. H. Ahmad Fauzi, MARS", "", -8)], 0),
+    ],
+  },
+  {
+    id: "PR-5", code: "PR-2608-014", date: d(-1, 13), requester: "dr. Bimo Prasetyo", unit: "IGD", needBy: d(45), status: "IN_APPROVAL",
+    lines: [
+      mkLine("ASSET", "", "Ventilator Transport — Dräger Oxylog 3000 Plus", 2, 445_000_000, [st("APPROVED", "Galih Saputra", "Spek sesuai formilarium alkes IGD", -1), st("PENDING"), st("PENDING")], 0, { category: "Life Support", brand: "Dräger", model: "Oxylog 3000 Plus" }),
     ],
   },
 ];
 
 export const PURCHASE_ORDERS: PurchaseOrder[] = [
-  { id: "PO-1", code: "PO-2608-090", date: d(-7, 11), supplierId: "S-03", items: [{ sku: "SP-PHL-MX-EXT", name: "SpO2 Extension Cable", qty: 10, price: 780_000 }], total: 7_800_000, eta: d(5), status: "SENT", prRef: "PR-2608-009" },
-  { id: "PO-2", code: "PO-2607-088", date: d(-20, 9), supplierId: "S-03", items: [{ sku: "FAR-1102", name: "NaCl 0.9% 500 ml", qty: 96, price: 14_800 }], total: 1_420_800, eta: d(-12), status: "RECEIVED", prRef: "PR-2607-071" },
-  { id: "PO-3", code: "PO-2607-090", date: d(-22, 14), supplierId: "S-03", items: [{ sku: "BHP-0089", name: "ECG Electrode Dewasa", qty: 500, price: 3_900 }], total: 1_950_000, eta: d(-14), status: "RECEIVED", prRef: "PR-2607-068" },
+  { id: "PO-4", code: "PO-2608-093", date: d(-2, 10), supplierId: "S-04", items: [{ kind: "ASSET", name: "Defibrillator AED Plus", category: "Life Support", brand: "Zoll", model: "AED Plus", qty: 2, price: 78_500_000 }], total: 157_000_000, eta: d(3), status: "SENT", prRef: "PR-2608-007" },
+  { id: "PO-1", code: "PO-2608-090", date: d(-7, 11), supplierId: "S-03", items: [{ kind: "ITEM", sku: "SP-PHL-MX-EXT", name: "SpO2 Extension Cable", qty: 10, price: 780_000 }], total: 7_800_000, eta: d(5), status: "SENT", prRef: "PR-2608-009" },
+  { id: "PO-2", code: "PO-2607-088", date: d(-20, 9), supplierId: "S-03", items: [{ kind: "ITEM", sku: "FAR-1102", name: "NaCl 0.9% 500 ml", qty: 96, price: 14_800 }], total: 1_420_800, eta: d(-12), status: "RECEIVED", prRef: "PR-2607-071" },
+  { id: "PO-3", code: "PO-2607-090", date: d(-22, 14), supplierId: "S-03", items: [{ kind: "ITEM", sku: "BHP-0089", name: "ECG Electrode Dewasa", qty: 500, price: 3_900 }], total: 1_950_000, eta: d(-14), status: "RECEIVED", prRef: "PR-2607-068" },
 ];
 
 /* ── Phase 1: logistics & master ── */
