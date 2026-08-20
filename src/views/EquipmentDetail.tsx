@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useApp } from "../lib/store";
 import { Bar, BtnGhost, BtnPrimary, BtnSm, Card, Chip, EmptyState, Input, Label, Modal, MonoTag, QRGlyph, Select, StatusChip, Tabs, TextArea, chipFor, Tone } from "../components/ui";
 import { CalibrationModal, InspectionModal, WOCompleteModal } from "../components/modals";
-import { IcBack, IcBolt, IcCal, IcCheck, IcClock, IcDoc, IcFlag, IcGauge, IcPin, IcPlus, IcScan, IcShield, IcSwap, IcUser, IcWrench } from "../components/icons";
+import { IcBack, IcBolt, IcCal, IcCheck, IcClock, IcDoc, IcFlag, IcGauge, IcPin, IcPlus, IcScan, IcShield, IcSwap, IcTruck, IcUser, IcWrench } from "../components/icons";
 import { BUILDINGS, DEST_UNITS } from "../lib/data";
 import { EventType, LIFECYCLE_STAGES, Priority, SLA_BY_PRIORITY, daysUntil, fmtDate, fmtDateTime, fmtIDR, fmtIDRCompact } from "../lib/types";
 
@@ -103,6 +103,16 @@ export default function EquipmentDetail() {
               <Fact icon={<IcCal size={11} />} label="Kalibrasi" v={eq.calDue ? fmtDate(eq.calDue) : "—"} sub={eq.calDue ? `${daysUntil(eq.calDue)} hari lagi` : "tidak wajib"} warn={!!eq.calDue && daysUntil(eq.calDue) < 30} />
               <Fact icon={<IcWrench size={11} />} label="Next PM" v={fmtDate(eq.nextMaint)} sub={`${eq.maintStrategy} · terakhir ${fmtDate(eq.lastMaint)}`} warn={daysUntil(eq.nextMaint) < 0} />
             </div>
+            {eq.poRef && (
+              <div className="mt-2.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 rounded-md border border-pine-700/50 bg-pine-950/40 px-3 py-1.5">
+                <IcTruck size={12} className="text-warnhi" />
+                <span className="font-mono text-[9px] font-bold uppercase tracking-[0.14em] text-pine-500">Asal pengadaan</span>
+                <span className="font-mono text-[10.5px] font-bold text-pine-100">{eq.poRef}</span>
+                {eq.invoiceNo && <span className="font-mono text-[10.5px] text-pine-100/80">· {eq.invoiceNo}</span>}
+                <span className="font-mono text-[10.5px] text-pine-100/60">· {s.suppliers.find((x) => x.id === eq.supplierId)?.name ?? "—"}</span>
+                <span className="font-mono text-[10.5px] text-pine-100/60">· peroleh {fmtDate(eq.acqDate)}</span>
+              </div>
+            )}
           </div>
           <div className="shrink-0 rounded-lg border border-pine-700 bg-pine-950/50 p-3.5">
             <p className="font-mono text-[9px] font-bold uppercase tracking-[0.16em] text-pine-500">Book value</p>

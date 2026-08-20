@@ -48,6 +48,7 @@ export interface Equipment {
   condition: Condition; opStatus: OpStatus; risk: Risk; criticality: Criticality;
   calRequired: boolean; calStatus: CalStatus; calLast: string | null; calDue: string | null;
   maintStrategy: MaintType; lastMaint: string; nextMaint: string; lifecycle: number; utilization: number; mtbfHours: number;
+  poRef?: string; invoiceNo?: string;
   docs: { name: string; size: string; kind: string; checksum: string; date: string }[];
 }
 export interface TimelineEvent { id: string; eqId: string; type: EventType; date: string; title: string; detail: string; actor: string; cost?: number; status?: string; }

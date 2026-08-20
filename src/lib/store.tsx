@@ -142,7 +142,11 @@ const mkEquipmentFromPo = (seq: number, name: string, category: string, price: n
     calRequired: CAL_CATS.includes(category), calStatus: CAL_CATS.includes(category) ? "VALID" : "NOT_REQUIRED",
     calLast: null, calDue: CAL_CATS.includes(category) ? d(365) : null,
     maintStrategy: "PREVENTIVE", lastMaint: now(), nextMaint: d(180), lifecycle: 6, utilization: 0, mtbfHours: 800,
-    docs: [],
+    poRef: poCode, invoiceNo: `INV-${poCode.slice(-3)}-${String(seq).padStart(2, "0")}`,
+    docs: [
+      { name: `BAST-${poCode}.pdf`, size: "420 KB", kind: "application/pdf", checksum: "sha256:" + uid() + uid(), date: now() },
+      { name: `Invoice-INV-${poCode.slice(-3)}-${String(seq).padStart(2, "0")}.pdf`, size: "180 KB", kind: "application/pdf", checksum: "sha256:" + uid() + uid(), date: now() },
+    ],
   };
 };
 
