@@ -6,7 +6,9 @@ import {
   IcLayers, IcPin, IcPlus, IcPulse, IcScan, IcScroll, IcSearch, IcShield, IcStamp, IcSwap, IcTruck, IcUser, IcWarn, IcWrench, IcCart, IcPhone, IcX, IcForm,
 } from "./components/icons";
 import { ROLES, ROLE_USER, Role, View, fmtDate, relTime } from "./lib/types";
+import { ROLE_PERMS } from "./lib/data";
 import { anomalies } from "./lib/intel";
+import LoginScreen from "./views/Login";
 import { RegisterModal } from "./components/modals";
 import Dashboard from "./views/Dashboard";
 import EquipmentList from "./views/EquipmentList";
@@ -52,6 +54,24 @@ const TITLES: Record<View, string> = {
   command: "Executive Command Center", compliance: "Security & Compliance",
   formbuilder: "Form Builder",
   reliability: "Reliability Analytics", eventbus: "Event Bus · Telemetri",
+  login: "Masuk",
+};
+
+/* ── RBAC: setiap view dipetakan ke modul izin (PERM_MODULES); "none" = disembunyikan ── */
+const VIEW_PERM: Record<View, number> = {
+  login: 0,
+  dashboard: 0, command: 0, notifications: 0,
+  equipment: 1, "equipment-detail": 1,
+  inventory: 2, logistics: 3, opname: 4,
+  technical: 5, formbuilder: 5, mobile: 5,
+  complaints: 6,
+  procurement: 7,
+  reporting: 8, utilization: 8, rental: 8, depreciation: 8, intelligence: 8, reliability: 8,
+  approvals: 9,
+  locations: 10, disposal: 10, assetledger: 10,
+  master: 11,
+  audit: 12, compliance: 12, eventbus: 12,
+  rbac: 13, config: 13, integrations: 13,
 };
 
 function Clock() {

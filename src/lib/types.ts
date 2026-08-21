@@ -1,6 +1,7 @@
 /* ── SIMASET domain model — PRD v1.0 state machines & enums ── */
 
 export type View =
+  | "login"
   | "dashboard" | "equipment" | "equipment-detail" | "inventory" | "logistics" | "opname"
   | "technical" | "complaints" | "procurement" | "reporting"
   | "master" | "locations" | "approvals" | "audit" | "rbac"
