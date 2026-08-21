@@ -31,6 +31,7 @@ type Act =
   | { t: "TOAST"; msg: string; kind?: Toast["kind"] } | { t: "TOAST_DROP"; id: string }
   | { t: "NOTIFS_READ" }
   | { t: "ADJUST"; sku: string; delta: number; reason: string }
+  | { t: "PR_CREATE"; lines: { kind: "ITEM" | "ASSET"; sku?: string; name: string; category?: string; qty: number; unitCost: number }[]; needBy: string }
   | { t: "PR_DECIDE"; prId: string; lineId: string; ok: boolean; note: string }
   | { t: "PR_DECIDE_ALL"; prId: string; ok: boolean; note: string }
   | { t: "PR_REVISE"; prId: string; lineId: string; qty: number }
@@ -152,6 +153,22 @@ function coreReducer(s: AppState, a: Act): AppState {
         ledger: [mkLedger(a.sku, "ADJUSTMENT", a.delta, newBal, me.name, "ADJ-" + uid()), ...s.ledger],
         audit: [mkAudit(me.name, s.role, "INVENTORY.ADJUST", "inventory", a.sku, a.reason, `${item.stock} → ${newBal}`), ...s.audit],
         toasts: [...s.toasts, okToast(`Stok ${item.name} disesuaikan (${a.delta > 0 ? "+" : ""}${a.delta})`)],
+      };
+    }
+
+    case "PR_CREATE": {
+      if (a.lines.length === 0) return s;
+      const mk = (): StageDecision[] => [{ status: "PENDING" }, { status: "PENDING" }, { status: "PENDING" }];
+      const lines: PRLine[] = a.lines.map((l) => ({ id: "L-" + uid(), kind: l.kind, sku: l.sku, name: l.name, category: l.category, qty: l.qty, unitCost: l.unitCost, stages: mk() }));
+      const unit = s.userUnit || "—";
+      const pr: PurchaseRequest = { id: "PR-" + uid(), code: "PR-2608-" + String(100 + s.purchaseRequests.length), date: now(), requester: me.name, unit, needBy: a.needBy, status: "IN_APPROVAL", lines };
+      const total = lines.reduce((x, l) => x + l.qty * l.unitCost, 0);
+      return {
+        ...s,
+        purchaseRequests: [pr, ...s.purchaseRequests],
+        audit: [mkAudit(me.name, s.role, "PROCUREMENT.PR_CREATE", "purchase_request", pr.code, `Permintaan unit ${unit}`, `${lines.length} baris · ${fmtIDR(total)}`), ...s.audit],
+        notifs: [mkNotif("APPROVAL_PENDING", `PR baru ${pr.code} dari ${unit} menunggu persetujuan tahap 1 (IT/Umum).`, pr.code), ...s.notifs],
+        toasts: [...s.toasts, okToast(`PR ${pr.code} diajukan — menunggu persetujuan IT/Umum`)],
       };
     }
 
