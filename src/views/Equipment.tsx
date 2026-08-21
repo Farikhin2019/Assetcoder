@@ -83,9 +83,10 @@ function EquipmentList() {
 }
 
 function EquipmentDetail() {
-  const { s, nav } = useApp();
+  const { s, nav, addPhotos, addDocs, printLabel } = useApp();
   const eq = s.equipment.find((e) => e.id === s.eqId);
   const [tab, setTab] = useState("timeline");
+  const [labelOpen, setLabelOpen] = useState(false);
   if (!eq) return <EmptyState title="Aset tidak ditemukan" />;
 
   const tl = s.timeline.filter((t) => t.eqId === eq.id);
@@ -94,12 +95,49 @@ function EquipmentDetail() {
   const cmps = s.complaints.filter((c) => c.eqId === eq.id);
   const sup = s.suppliers.find((x) => x.id === eq.supplierId);
   const overdue = daysUntil(eq.nextMaint) < 0;
+  const photos = eq.photos ?? [];
+  const docs = eq.docs ?? [];
+
+  const fmtSize = (b: number) => b > 1e6 ? (b / 1e6).toFixed(1) + " MB" : Math.max(1, Math.round(b / 1e3)) + " KB";
+  const onPhotoPick = (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const list = Array.from(files).slice(0, 6).map((f) => ({
+      id: "PH-" + Math.random().toString(36).slice(2, 7).toUpperCase(),
+      name: f.name, size: fmtSize(f.size), mime: f.type || "image/jpeg",
+      dataUrl: URL.createObjectURL(f), date: new Date().toISOString(), by: s.userName,
+    }));
+    addPhotos(eq.id, list);
+  };
+  const onDocPick = (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const list = Array.from(files).slice(0, 6).map((f) => ({
+      id: "DC-" + Math.random().toString(36).slice(2, 7).toUpperCase(),
+      name: f.name, size: fmtSize(f.size), mime: f.type || "application/pdf",
+      dataUrl: "", date: new Date().toISOString(), by: s.userName, checksum: "sha256:" + Math.random().toString(36).slice(2, 10),
+    }));
+    addDocs(eq.id, list);
+  };
 
   return (
     <div className="view-in space-y-4">
-      <button onClick={() => nav("equipment")} className="flex items-center gap-1.5 font-mono text-[11px] font-bold text-pine-700 transition hover:text-pine-600">
-        <ArrowLeft size={13} /> Kembali ke registry
-      </button>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <button onClick={() => nav("equipment")} className="flex items-center gap-1.5 font-mono text-[11px] font-bold text-pine-700 transition hover:text-pine-600">
+          <ArrowLeft size={13} /> Kembali ke registry
+        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-line bg-card px-3 py-1.5 font-display text-[11.5px] font-bold text-ink2 transition hover:border-pine-500/50 hover:text-pine-700">
+            <Camera size={13} /> Unggah Foto
+            <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => { onPhotoPick(e.target.files); e.target.value = ""; }} />
+          </label>
+          <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-line bg-card px-3 py-1.5 font-display text-[11.5px] font-bold text-ink2 transition hover:border-pine-500/50 hover:text-pine-700">
+            <FileText size={13} /> Unggah Dokumen
+            <input type="file" multiple className="hidden" onChange={(e) => { onDocPick(e.target.files); e.target.value = ""; }} />
+          </label>
+          <button onClick={() => setLabelOpen(true)} className="inline-flex items-center gap-1.5 rounded-md bg-pine-700 px-3 py-1.5 font-display text-[11.5px] font-bold text-pine-50 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] transition hover:bg-pine-800 active:translate-y-px">
+            <QrCode size={13} /> Cetak Label Aset
+          </button>
+        </div>
+      </div>
 
       <Card className="dark-grain p-5 text-pine-50">
         <div className="flex flex-wrap items-start justify-between gap-4">
@@ -140,8 +178,8 @@ function EquipmentDetail() {
 
       <Card className="p-4">
         <Tabs active={tab} onChange={setTab}
-          tabs={[{ id: "timeline", label: "Timeline" }, { id: "wo", label: "Work Order" }, { id: "cal", label: "Kalibrasi" }, { id: "cmp", label: "Keluhan" }]}
-          counts={{ timeline: tl.length, wo: wos.length, cal: cals.length, cmp: cmps.length }} />
+          tabs={[{ id: "timeline", label: "Timeline" }, { id: "wo", label: "Work Order" }, { id: "cal", label: "Kalibrasi" }, { id: "cmp", label: "Keluhan" }, { id: "lamp", label: "Foto & Dokumen" }]}
+          counts={{ timeline: tl.length, wo: wos.length, cal: cals.length, cmp: cmps.length, lamp: photos.length + docs.length }} />
         <div className="pt-4">
           {tab === "timeline" && (
             <div className="space-y-2.5">

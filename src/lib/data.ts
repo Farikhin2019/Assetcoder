@@ -1,7 +1,7 @@
 import {
   AuditEntry, Building, CalibrationRecord, Complaint, Delivery, Equipment, Floor, HandoverRecord, Hospital,
   InventoryItem, LedgerEntry, Notif, PRLine, PurchaseOrder, PurchaseRequest, RoomInfo, StageDecision, Supplier,
-  Technician, TimelineEvent, UserAccount, UnitNode, WorkOrder, d, uid,
+  Technician, TimelineEvent, UserAccount, UnitNode, VendorReturn, WorkOrder, d, uid,
 } from "./types";
 
 /* ── users (untuk login) ── */
@@ -143,6 +143,18 @@ export const PURCHASE_ORDERS: PurchaseOrder[] = [
 export const DELIVERIES: Delivery[] = [
   { id: "DL-1", code: "DIST-2608-029", date: d(-1, 10), poRef: "PO-2608-090", unit: "IGD", items: [{ name: "NaCl 0.9% 500 ml", qty: 96 }], status: "DELIVERED", courier: "Sari Melati" },
   { id: "DL-2", code: "DIST-2607-118", date: d(-20, 9), poRef: "PO-2607-071", unit: "Poli Gigi", items: [{ name: "Handscoon Nitrile M", qty: 100 }], status: "RECEIVED", courier: "Sari Melati", receivedBy: "drg. Fani Rahma" },
+];
+
+/* ── retur ke vendor (contoh: selisih saat penerimaan) ── */
+export const VENDOR_RETURNS: VendorReturn[] = [
+  {
+    id: "RT-1", code: "RET-2607-003", date: d(-14, 11), poRef: "PO-2607-071", supplierId: "S-03",
+    lines: [
+      { name: "Handscoon Nitrile M", qty: 8, reason: "KURANG", kind: "ITEM", sku: "BHP-0012", unitCost: 68_000 },
+      { name: "Infus Set Dewasa", qty: 2, reason: "RUSAK", kind: "ITEM", sku: "BHP-0038", unitCost: 11_500 },
+    ],
+    status: "DIKIRIM", note: "Segel box handscoon kurang 8; 2 set infus bocor saat unboxing.", sentAt: d(-13, 9),
+  },
 ];
 
 /* ── serah terima / BAST ── */

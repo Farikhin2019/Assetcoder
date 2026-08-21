@@ -69,6 +69,16 @@ export interface WorkOrder { id: string; wo: string; eqId: string; type: "PREVEN
 export interface CalibrationRecord { id: string; eqId: string; date: string; result: "PASS" | "FAIL"; cert: string; nextDue: string; cost: number; }
 export interface Complaint { id: string; code: string; eqId: string; date: string; reporter: string; priority: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW"; description: string; status: "OPEN" | "IN_PROGRESS" | "RESOLVED" | "CLOSED"; slaHours: number; }
 export interface Supplier { id: string; name: string; service: string; contractUntil: string; }
+
+/* ── retur ke vendor (selisih kurang / barang rusak saat penerimaan) ── */
+export type ReturnReason = "KURANG" | "RUSAK";
+export type ReturnStatus = "DIAJUKAN" | "DIKIRIM" | "DIGANTI" | "REFUND" | "DITUTUP";
+export interface ReturnLine { name: string; qty: number; reason: ReturnReason; kind: "ITEM" | "ASSET"; sku?: string; unitCost: number; }
+export interface VendorReturn {
+  id: string; code: string; date: string; poRef: string; supplierId: string;
+  lines: ReturnLine[]; status: ReturnStatus; note?: string;
+  sentAt?: string; resolvedAt?: string; resolution?: string;
+}
 export interface Technician { id: string; name: string; specialty: string; cert: string; }
 export interface AuditEntry { id: string; date: string; actor: string; role: string; action: string; entity: string; entityId: string; reason?: string; }
 export interface Notif { id: string; kind: string; msg: string; refId: string; date: string; read: boolean; }

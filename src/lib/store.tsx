@@ -3,12 +3,12 @@ import {
   AssetDoc, AssetPhoto, AuditEntry, Building, CalibrationRecord, Complaint, Delivery, Equipment, Floor,
   HandoverLine, HandoverRecord, Hospital, InventoryItem, LedgerEntry, Notif, PRLine, PermLevel, PurchaseOrder,
   PurchaseRequest, ROLE_PERMS, RoomInfo, Role, ROLE_USER, SLA_BY_PRIORITY, StageDecision, Supplier, Technician,
-  TimelineEvent, Toast, UnitNode, UserAccount, View, VIEW_PERM, WorkOrder, d, fmtIDR, uid,
+  TimelineEvent, Toast, UnitNode, UserAccount, VendorReturn, ReturnLine, View, VIEW_PERM, WorkOrder, d, fmtIDR, uid,
 } from "./types";
 import {
   AUDIT, BUILDINGS, CALIBRATIONS, COMPLAINTS, DELIVERIES, EQUIPMENT, FLOORS, HANDOVERS, HOSPITALS, ITEMS,
   LEDGER_INIT, NOTIFS, PURCHASE_ORDERS, PURCHASE_REQUESTS, ROOMS, SUPPLIERS, TECHNICIANS, TIMELINE, UNITS, USERS,
-  WORK_ORDERS,
+  VENDOR_RETURNS, WORK_ORDERS,
 } from "./data";
 
 export interface AppState {
@@ -19,7 +19,7 @@ export interface AppState {
   equipment: Equipment[]; timeline: TimelineEvent[];
   items: InventoryItem[]; ledger: LedgerEntry[];
   purchaseRequests: PurchaseRequest[]; purchaseOrders: PurchaseOrder[]; deliveries: Delivery[];
-  handovers: HandoverRecord[];
+  handovers: HandoverRecord[]; vendorReturns: VendorReturn[];
   workOrders: WorkOrder[]; calibrations: CalibrationRecord[]; complaints: Complaint[];
   suppliers: Supplier[]; technicians: Technician[];
   audit: AuditEntry[]; notifs: Notif[]; toasts: Toast[];
@@ -48,7 +48,10 @@ type Act =
   | { t: "LOC_DELETE"; kind: LocKind; id: string }
   | { t: "EQUIP_ADD_PHOTOS"; eqId: string; photos: AssetPhoto[] }
   | { t: "EQUIP_ADD_DOCS"; eqId: string; docs: AssetDoc[] }
-  | { t: "PRINT_LABEL"; eqId: string };
+  | { t: "PRINT_LABEL"; eqId: string }
+  | { t: "RETURN_SEND"; id: string }
+  | { t: "RETURN_RESOLVE"; id: string; mode: "DIGANTI" | "REFUND"; note: string }
+  | { t: "RETURN_CLOSE"; id: string };
 
 const now = () => new Date().toISOString();
 const mkAudit = (actor: string, role: string, action: string, entity: string, entityId: string, reason?: string, delta?: string): AuditEntry =>
@@ -96,7 +99,7 @@ const INIT: AppState = {
   equipment: EQUIPMENT, timeline: TIMELINE,
   items: ITEMS, ledger: LEDGER_INIT,
   purchaseRequests: PURCHASE_REQUESTS, purchaseOrders: PURCHASE_ORDERS, deliveries: DELIVERIES,
-  handovers: HANDOVERS,
+  handovers: HANDOVERS, vendorReturns: VENDOR_RETURNS,
   workOrders: WORK_ORDERS, calibrations: CALIBRATIONS, complaints: COMPLAINTS,
   suppliers: SUPPLIERS, technicians: TECHNICIANS,
   audit: AUDIT, notifs: NOTIFS, toasts: [],
@@ -290,6 +293,23 @@ function coreReducer(s: AppState, a: Act): AppState {
         deliveries = [{ id: "DL-" + uid(), code: "DIST-2608-" + String(30 + s.deliveries.length), date: now(), poRef: po.code, unit: destUnit, items: deliveryItems, status: "PENDING" }, ...deliveries];
       }
 
+      /* ── baris KURANG / RUSAK → otomatis dibuatkan retur ke vendor ── */
+      const returnLines: ReturnLine[] = [];
+      po.items.forEach((it, i) => {
+        const cond = a.lines[i]?.condition;
+        const recvQty = a.lines[i]?.qty ?? it.qty;
+        if (cond === "KURANG" && it.qty - recvQty > 0)
+          returnLines.push({ name: it.name, qty: it.qty - recvQty, reason: "KURANG", kind: it.kind, sku: it.sku, unitCost: it.price });
+        else if (cond === "RUSAK" && recvQty > 0)
+          returnLines.push({ name: it.name, qty: recvQty, reason: "RUSAK", kind: it.kind, sku: it.sku, unitCost: it.price });
+      });
+      let vendorReturns = next.vendorReturns;
+      let returnCode: string | null = null;
+      if (returnLines.length > 0) {
+        returnCode = "RET-2608-" + String(4 + s.vendorReturns.length).padStart(3, "0");
+        vendorReturns = [{ id: "RT-" + uid(), code: returnCode, date: now(), poRef: po.code, supplierId: po.supplierId, lines: returnLines, status: "DIAJUKAN", note: a.note || "Selisih/rusak saat penerimaan — perlu tindak lanjut ke vendor." }, ...vendorReturns];
+      }
+
       return {
         ...next,
         ledger: [...entries, ...next.ledger],
@@ -297,9 +317,11 @@ function coreReducer(s: AppState, a: Act): AppState {
         timeline: [...newTimeline, ...next.timeline],
         deliveries,
         handovers: [bast, ...next.handovers],
+        vendorReturns,
         notifs: [
           mkNotif("BAST", `BAST ${bastCode} diterbitkan — serah terima ${po.code} dari ${supplierName}.`, bastCode),
           ...(newEquipment.length > 0 ? [mkNotif("ASSET_REGISTERED", `${newEquipment.length} aset baru dari ${po.code} terdaftar.`, newEquipment[0].id)] : []),
+          ...(returnCode ? [mkNotif("VENDOR_RETURN", `${returnLines.length} baris kurang/rusak di ${po.code} — retur ${returnCode} dibuat otomatis.`, returnCode)] : []),
           ...next.notifs,
         ],
         audit: [
@@ -307,7 +329,10 @@ function coreReducer(s: AppState, a: Act): AppState {
           ...newEquipment.map((eq) => mkAudit(me.name, s.role, "ASSET.REGISTER", "asset", eq.code, `Dari pengadaan ${po.code}`, eq.name)),
           mkAudit(me.name, s.role, "PROCUREMENT.GRN", "goods_receipt", po.code, undefined, `${po.items.length} line diterima`), ...next.audit,
         ],
-        toasts: [...next.toasts, okToast(newEquipment.length > 0 ? `${po.code} diterima — BAST ${bastCode} & ${newEquipment.length} aset didaftarkan` : `${po.code} diterima — BAST ${bastCode}, GRN & ledger diposting`)],
+        toasts: [...next.toasts,
+          okToast(newEquipment.length > 0 ? `${po.code} diterima — BAST ${bastCode} & ${newEquipment.length} aset didaftarkan` : `${po.code} diterima — BAST ${bastCode}, GRN & ledger diposting`),
+          ...(returnCode ? [okToast(`Retur ${returnCode} dibuat otomatis untuk ${returnLines.length} baris kurang/rusak`, "warn")] : []),
+        ],
       };
     }
 
@@ -374,6 +399,69 @@ function coreReducer(s: AppState, a: Act): AppState {
         ...s,
         audit: [mkAudit(me.name, s.role, "ASSET.LABEL_PRINT", "asset", eq.code, "Cetak label aset + QR", eq.name), ...s.audit],
         toasts: [...s.toasts, okToast(`Label ${eq.code} dikirim ke printer`)],
+      };
+    }
+
+    /* ── retur ke vendor: kirim, selesaikan (ganti/refund), tutup ── */
+    case "RETURN_SEND": {
+      const rt = s.vendorReturns.find((x) => x.id === a.id)!;
+      const sup = s.suppliers.find((x) => x.id === rt.supplierId)?.name ?? "Vendor";
+      return {
+        ...s,
+        vendorReturns: s.vendorReturns.map((x) => (x.id === a.id ? { ...x, status: "DIKIRIM", sentAt: now() } : x)),
+        audit: [mkAudit(me.name, s.role, "PROCUREMENT.RETURN_SEND", "vendor_return", rt.code, `Dikirim balik ke ${sup}`, `${rt.lines.length} item (${rt.lines.map((l) => l.reason).join("/")})`), ...s.audit],
+        notifs: [mkNotif("VENDOR_RETURN", `Retur ${rt.code} dikirim ke ${sup} — menunggu penggantian/refund.`, rt.code), ...s.notifs],
+        toasts: [...s.toasts, okToast(`Retur ${rt.code} dikirim ke ${sup}`)],
+      };
+    }
+
+    case "RETURN_RESOLVE": {
+      const rt = s.vendorReturns.find((x) => x.id === a.id);
+      if (!rt) return s;
+      let next: AppState = { ...s, vendorReturns: s.vendorReturns.map((x) => (x.id === a.id ? { ...x, status: a.mode, resolvedAt: now(), resolution: a.note } : x)) };
+      const entries: LedgerEntry[] = [];
+      const newEquipment: Equipment[] = [];
+      const newTimeline: TimelineEvent[] = [];
+
+      if (a.mode === "DIGANTI") {
+        /* vendor mengirim pengganti → terima seperti GRN (stok naik / aset terdaftar) */
+        for (const ln of rt.lines) {
+          if (ln.kind !== "ASSET") {
+            const item = next.items.find((i) => i.sku === ln.sku);
+            if (!item) continue;
+            const newBal = item.stock + ln.qty;
+            entries.push(mkLedger(ln.sku!, "RECEIPT", ln.qty, newBal, me.name, rt.code));
+            next = { ...next, items: next.items.map((i) => (i.sku === ln.sku ? { ...i, stock: newBal } : i)) };
+            continue;
+          }
+          for (let u = 0; u < ln.qty; u++) {
+            const eq = mkEquipmentFromPo(next.equipment.length + newEquipment.length + 1, ln.name, "Monitoring", ln.unitCost, rt.supplierId, rt.poRef, me.name);
+            newEquipment.push(eq);
+            newTimeline.push(mkTimeline(eq.id, "LIFECYCLE", `Registrasi aset pengganti — ${eq.code}`, `${ln.name} diterima sebagai pengganti retur ${rt.code}.`, me.name));
+          }
+        }
+      }
+
+      const sup = s.suppliers.find((x) => x.id === rt.supplierId)?.name ?? "Vendor";
+      const totalRefund = rt.lines.reduce((x, l) => x + l.qty * l.unitCost, 0);
+      return {
+        ...next,
+        ledger: [...entries, ...next.ledger],
+        equipment: [...next.equipment, ...newEquipment],
+        timeline: [...newTimeline, ...next.timeline],
+        audit: [mkAudit(me.name, s.role, a.mode === "DIGANTI" ? "PROCUREMENT.RETURN_REPLACED" : "PROCUREMENT.RETURN_REFUND", "vendor_return", rt.code, a.note || undefined, a.mode === "DIGANTI" ? `${rt.lines.length} item pengganti diterima dari ${sup}` : `Refund ${fmtIDR(totalRefund)} dari ${sup}`), ...s.audit],
+        notifs: [mkNotif("VENDOR_RETURN", a.mode === "DIGANTI" ? `Retur ${rt.code} diganti — ${rt.lines.length} item diterima kembali.` : `Retur ${rt.code} di-refund ${fmtIDR(totalRefund)}.`, rt.code), ...s.notifs],
+        toasts: [...s.toasts, okToast(a.mode === "DIGANTI" ? `Pengganti ${rt.code} diterima — stok/aset diperbarui` : `Refund ${rt.code} dicatat ${fmtIDR(totalRefund)}`)],
+      };
+    }
+
+    case "RETURN_CLOSE": {
+      const rt = s.vendorReturns.find((x) => x.id === a.id)!;
+      return {
+        ...s,
+        vendorReturns: s.vendorReturns.map((x) => (x.id === a.id ? { ...x, status: "DITUTUP" } : x)),
+        audit: [mkAudit(me.name, s.role, "PROCUREMENT.RETURN_CLOSE", "vendor_return", rt.code, "Retur diselesaikan & ditutup", undefined), ...s.audit],
+        toasts: [...s.toasts, okToast(`Retur ${rt.code} ditutup`)],
       };
     }
 
@@ -541,6 +629,9 @@ interface Api {
   addPhotos: (eqId: string, photos: AssetPhoto[]) => void;
   addDocs: (eqId: string, docs: AssetDoc[]) => void;
   printLabel: (eqId: string) => void;
+  returnSend: (id: string) => void;
+  returnResolve: (id: string, mode: "DIGANTI" | "REFUND", note: string) => void;
+  returnClose: (id: string) => void;
 }
 
 const Ctx = createContext<Api | null>(null);
@@ -573,6 +664,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     addPhotos: (eqId, photos) => dispatch({ t: "EQUIP_ADD_PHOTOS", eqId, photos }),
     addDocs: (eqId, docs) => dispatch({ t: "EQUIP_ADD_DOCS", eqId, docs }),
     printLabel: (eqId) => dispatch({ t: "PRINT_LABEL", eqId }),
+    returnSend: (id) => dispatch({ t: "RETURN_SEND", id }),
+    returnResolve: (id, mode, note) => dispatch({ t: "RETURN_RESOLVE", id, mode, note }),
+    returnClose: (id) => dispatch({ t: "RETURN_CLOSE", id }),
   }), [s]);
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>;
 }

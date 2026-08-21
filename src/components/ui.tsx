@@ -25,6 +25,9 @@ export function chipFor(status: string): Tone {
     AKTIF: "ok", RENCANA: "info", NONAKTIF: "neutral", ACTIVE: "ok", PLANNED: "info", UNDER_RENOVATION: "warn", INACTIVE: "neutral",
     RECEIPT: "ok", ISSUE: "info", CONSUMPTION: "info", ADJUSTMENT: "warn", OPENING_BALANCE: "neutral", STOCK_OPNAME: "info",
     PREVENTIVE: "pine", CORRECTIVE: "warn",
+    DIAJUKAN: "warn", DIKIRIM: "info", DIGANTI: "ok", REFUND: "warn", DITUTUP: "neutral",
+    KURANG: "warn", RUSAK: "danger", BAIK: "ok",
+    VENDOR: "info", DOCUMENT: "neutral", LIFECYCLE: "pine", PROCUREMENT: "info",
   };
   return map[status] ?? "neutral";
 }
