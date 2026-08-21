@@ -1,11 +1,11 @@
 import React, { useEffect, useRef, useState } from "react";
-import { StoreProvider, useApp } from "./lib/store";
+import { StoreProvider, canSeeView, useApp } from "./lib/store";
 import { Chip, ToastHost } from "./components/ui";
 import {
   IcBell, IcBolt, IcBox, IcChart, IcCheck, IcChevD, IcClose, IcClock, IcFlag, IcGauge, IcHospital, IcLedger,
   IcLayers, IcPin, IcPlus, IcPulse, IcScan, IcScroll, IcSearch, IcShield, IcStamp, IcSwap, IcTruck, IcUser, IcWarn, IcWrench, IcCart, IcPhone, IcX, IcForm,
 } from "./components/icons";
-import { ROLES, ROLE_USER, Role, View, fmtDate, relTime } from "./lib/types";
+import { ROLES, ROLE_USER, Role, View, fmtDate, initialsOf, relTime } from "./lib/types";
 import { ROLE_PERMS } from "./lib/data";
 import { anomalies } from "./lib/intel";
 import LoginScreen from "./views/Login";
@@ -162,7 +162,7 @@ function NotifBell() {
 }
 
 function Shell() {
-  const { s, nav, setRole, search } = useApp();
+  const { s, nav, setRole, search, logout } = useApp();
   const [roleOpen, setRoleOpen] = useState(false);
   const [regOpen, setRegOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -237,6 +237,24 @@ function Shell() {
     ]},
   ];
 
+  /* ── menu ter-filter sesuai hak akses role (RBAC) ── */
+  const visibleNav = NAV
+    .map((g) => ({ ...g, items: g.items.filter((it) => canSeeView(s.role, it.id)) }))
+    .filter((g) => g.items.length > 0);
+  const visibleCount = visibleNav.reduce((x, g) => x + g.items.length, 0);
+
+  /* tab bawah mobile: 4 modul teratas yang diizinkan role ini */
+  const allTabs: { id: View | "MORE"; label: string; icon: React.ReactNode; badge?: number }[] = [
+    { id: "command", label: "Command", icon: <IcGauge size={18} /> },
+    { id: "dashboard", label: "Pantau", icon: <IcPulse size={18} /> },
+    { id: "equipment", label: "Aset", icon: <IcScan size={18} /> },
+    { id: "procurement", label: "Beli", icon: <IcCart size={18} /> },
+    { id: "technical", label: "Teknis", icon: <IcWrench size={18} /> },
+    { id: "approvals", label: "Setuju", icon: <IcStamp size={18} />, badge: pending },
+    { id: "logistics", label: "Gudang", icon: <IcTruck size={18} /> },
+  ];
+  const mobileTabs = allTabs.filter((t) => t.id !== "MORE" && canSeeView(s.role, t.id as View)).slice(0, 4);
+
   return (
     <div className="flex h-screen overflow-hidden">
       <aside className="dark-grain hidden w-[228px] shrink-0 flex-col border-r border-pine-800 md:flex">
@@ -262,7 +280,11 @@ function Shell() {
         </div>
 
         <nav className="flex-1 overflow-y-auto px-2.5 pb-3">
-          {NAV.map((g) => (
+          <div className="mx-1 mb-3 flex items-center justify-between rounded-md border border-pine-800 bg-pine-950/50 px-2.5 py-1.5">
+            <span className="font-mono text-[8.5px] font-bold uppercase tracking-[0.14em] text-pine-500">Hak akses aktif</span>
+            <span className="font-mono text-[9.5px] font-bold text-warnhi">{visibleCount} modul</span>
+          </div>
+          {visibleNav.map((g) => (
             <div key={g.group} className="mb-3">
               <p className="px-2 pb-1.5 font-mono text-[9px] font-bold uppercase tracking-[0.18em] text-pine-500/80">{g.group}</p>
               {g.items.map((it) => (
@@ -292,22 +314,22 @@ function Shell() {
 
         <div className="relative border-t border-pine-800 p-3">
           <button onClick={() => setRoleOpen(!roleOpen)} className="flex w-full items-center gap-2.5 rounded-md px-1.5 py-1.5 text-left transition hover:bg-pine-800/70">
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-pine-700 font-display text-[11px] font-black text-pine-50">{ROLE_USER[s.role].initials}</span>
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-pine-700 font-display text-[11px] font-black text-pine-50">{initialsOf(s.userName)}</span>
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-[11.5px] font-bold text-pine-100">{ROLE_USER[s.role].name}</span>
-              <span className="block font-mono text-[9px] uppercase tracking-wider text-warnhi">{s.role}</span>
+              <span className="block truncate text-[11.5px] font-bold text-pine-100">{s.userName}</span>
+              <span className="block font-mono text-[9px] uppercase tracking-wider text-warnhi">{s.role}{s.userUnit ? ` · ${s.userUnit}` : ""}</span>
             </span>
             <IcChevD size={13} className={`text-pine-500 transition ${roleOpen ? "rotate-180" : ""}`} />
           </button>
           {roleOpen && (
             <div className="modal-in absolute bottom-full left-3 right-3 z-40 mb-1 overflow-hidden rounded-lg border border-pine-700 bg-pine-900 shadow-2xl">
-              <p className="border-b border-pine-800 px-3 py-2 font-mono text-[9px] font-bold uppercase tracking-[0.16em] text-pine-500">Switch role (RBAC demo)</p>
-              {ROLES.map((r) => (
-                <button key={r} onClick={() => { setRole(r); setRoleOpen(false); }} className={`flex w-full items-center justify-between px-3 py-2 text-left text-[12px] font-semibold transition hover:bg-pine-800 ${s.role === r ? "text-warnhi" : "text-pine-100/75"}`}>
-                  {r}
-                  {s.role === r && <IcCheck size={12} />}
-                </button>
-              ))}
+              <p className="border-b border-pine-800 px-3 py-2 font-mono text-[9px] font-bold uppercase tracking-[0.16em] text-pine-500">Sesi: {s.userName}</p>
+              <button onClick={() => { setRoleOpen(false); setMenuOpen(true); }} className="flex w-full items-center gap-2 px-3 py-2 text-left text-[12px] font-semibold text-pine-100/75 transition hover:bg-pine-800">
+                <IcUser size={13} /> Ganti user / role…
+              </button>
+              <button onClick={() => { setRoleOpen(false); logout(); }} className="flex w-full items-center gap-2 border-t border-pine-800 px-3 py-2 text-left text-[12px] font-semibold text-danger transition hover:bg-pine-800">
+                <IcClose size={13} /> Keluar (logout)
+              </button>
             </div>
           )}
         </div>
@@ -338,10 +360,17 @@ function Shell() {
             <IcPlus size={13} /> Registrasi Aset
           </button>
 
-          <div className="hidden items-center gap-1.5 rounded-md border border-line bg-card px-2.5 py-1.5 lg:flex">
-            <IcUser size={13} className="text-pine-600" />
-            <span className="font-mono text-[10.5px] font-bold text-ink2">{s.role}</span>
+          <div className="hidden items-center gap-2 rounded-md border border-line bg-card py-1 pl-1 pr-1.5 lg:flex">
+            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-pine-700 font-display text-[9px] font-black text-pine-50">{initialsOf(s.userName)}</span>
+            <span className="min-w-0">
+              <span className="block max-w-[150px] truncate font-mono text-[10.5px] font-bold leading-tight text-ink">{s.userName}</span>
+              <span className="block font-mono text-[8.5px] uppercase leading-tight tracking-wide text-pine-600">{s.role}{s.userUnit ? ` · ${s.userUnit}` : ""}</span>
+            </span>
           </div>
+          <button onClick={logout} title="Keluar & ganti user"
+            className="hidden shrink-0 items-center gap-1.5 rounded-md border border-line bg-card px-2.5 py-2 font-display text-[11.5px] font-bold text-ink2 transition hover:border-danger/50 hover:text-danger active:translate-y-px lg:flex">
+            <IcClose size={12} /> Keluar
+          </button>
         </header>
 
 
@@ -386,18 +415,12 @@ function Shell() {
         </main>
       </div>
 
-      {/* ── mobile bottom tab bar ── */}
+      {/* ── mobile bottom tab bar (ter-filter hak akses) ── */}
       <nav className="safe-bottom fixed inset-x-0 bottom-0 z-40 border-t border-pine-800 bg-pine-900/95 backdrop-blur-md md:hidden">
-        <div className="grid grid-cols-5">
-          {[
-            { id: "command" as View | "MORE", label: "Command", icon: <IcGauge size={18} /> },
-            { id: "dashboard" as View | "MORE", label: "Pantau", icon: <IcPulse size={18} /> },
-            { id: "equipment" as View | "MORE", label: "Aset", icon: <IcScan size={18} /> },
-            { id: "approvals" as View | "MORE", label: "Setuju", icon: <IcStamp size={18} />, badge: pending },
-            { id: "MORE" as View | "MORE", label: "Lainnya", icon: <IcLayers size={18} /> },
-          ].map((t) => {
+        <div className="grid" style={{ gridTemplateColumns: `repeat(${[...mobileTabs.map(() => 1), 1].length}, minmax(0,1fr))` }}>
+          {[...mobileTabs, { id: "MORE" as View | "MORE", label: "Lainnya", icon: <IcLayers size={18} />, badge: undefined as number | undefined }].map((t) => {
             const isMore = t.id === "MORE";
-            const isActive = isMore ? !["command", "dashboard", "equipment", "approvals"].includes(s.view) : s.view === t.id || (t.id === "equipment" && s.view === "equipment-detail");
+            const isActive = isMore ? !mobileTabs.some((x) => x.id === s.view) : s.view === t.id || (t.id === "equipment" && s.view === "equipment-detail");
             return (
               <button key={t.id} onClick={() => (isMore ? setMenuOpen(true) : nav(t.id as View))}
                 className={`tap-scale relative flex flex-col items-center gap-0.5 py-2 transition ${isActive ? "text-warnhi" : "text-pine-100/60"}`}>
@@ -424,19 +447,24 @@ function Shell() {
                 <p className="font-display text-[15px] font-black tracking-tight text-ink">Semua Modul</p>
                 <button onClick={() => setMenuOpen(false)} className="rounded-md p-1.5 text-mute transition hover:bg-moss hover:text-ink"><IcClose size={16} /></button>
               </div>
-              <div className="mt-2.5 flex gap-2 overflow-x-auto pb-1">
-                {ROLES.map((r) => (
-                  <button key={r} onClick={() => setRole(r)}
-                    className={`shrink-0 rounded-full border px-3 py-1.5 font-display text-[11px] font-bold transition ${s.role === r ? "border-pine-600 bg-pine-700 text-pine-50" : "border-line bg-card text-ink2"}`}>{r}</button>
-                ))}
+              <div className="mt-2.5 flex items-center gap-2">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-pine-700 font-display text-[10px] font-black text-pine-50">{initialsOf(s.userName)}</span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[12px] font-bold text-ink">{s.userName}</span>
+                  <span className="block font-mono text-[9px] uppercase tracking-wide text-pine-600">{s.role}{s.userUnit ? ` · ${s.userUnit}` : ""}</span>
+                </span>
+                <button onClick={() => { setMenuOpen(false); logout(); }}
+                  className="shrink-0 rounded-md border border-danger/40 px-2.5 py-1.5 font-display text-[11px] font-bold text-danger transition hover:bg-dangerbg">Keluar</button>
               </div>
             </div>
             <div className="space-y-4 px-4 py-4">
-              <button onClick={() => { setMenuOpen(false); setRegOpen(true); }}
-                className="tap-scale flex w-full items-center justify-center gap-1.5 rounded-lg bg-pine-700 py-3 font-display text-[13px] font-bold text-pine-50 active:bg-pine-800">
-                <IcPlus size={14} /> Registrasi Aset Baru
-              </button>
-              {NAV.map((g) => (
+              {canSeeView(s.role, "equipment") && (
+                <button onClick={() => { setMenuOpen(false); setRegOpen(true); }}
+                  className="tap-scale flex w-full items-center justify-center gap-1.5 rounded-lg bg-pine-700 py-3 font-display text-[13px] font-bold text-pine-50 active:bg-pine-800">
+                  <IcPlus size={14} /> Registrasi Aset Baru
+                </button>
+              )}
+              {visibleNav.map((g) => (
                 <div key={g.group}>
                   <p className="mb-1.5 font-mono text-[9px] font-bold uppercase tracking-[0.16em] text-mute">{g.group}</p>
                   <div className="grid grid-cols-2 gap-1.5">
@@ -463,10 +491,19 @@ function Shell() {
   );
 }
 
+function Gate() {
+  const { s } = useApp();
+  return (
+    <>
+      {s.view === "login" ? <LoginScreen /> : <Shell />}
+    </>
+  );
+}
+
 export default function App() {
   return (
     <StoreProvider>
-      <Shell />
+      <Gate />
     </StoreProvider>
   );
 }
