@@ -1,7 +1,7 @@
 import {
-  AuditEntry, Building, CalibrationRecord, Complaint, Delivery, Equipment, Floor, Hospital, InventoryItem,
-  LedgerEntry, Notif, PRLine, PurchaseOrder, PurchaseRequest, RoomInfo, StageDecision, Supplier, Technician,
-  TimelineEvent, UserAccount, UnitNode, WorkOrder, d, uid,
+  AuditEntry, Building, CalibrationRecord, Complaint, Delivery, Equipment, Floor, HandoverRecord, Hospital,
+  InventoryItem, LedgerEntry, Notif, PRLine, PurchaseOrder, PurchaseRequest, RoomInfo, StageDecision, Supplier,
+  Technician, TimelineEvent, UserAccount, UnitNode, WorkOrder, d, uid,
 } from "./types";
 
 /* ── users (untuk login) ── */
@@ -141,7 +141,28 @@ export const PURCHASE_ORDERS: PurchaseOrder[] = [
 ];
 
 export const DELIVERIES: Delivery[] = [
-  { id: "DL-1", code: "DIST-2608-029", date: d(-1, 10), poRef: "PO-2607-086", unit: "ICU", items: [{ name: "NaCl 0.9% 500 ml", qty: 96 }], status: "DELIVERED", courier: "Sari Melati" },
+  { id: "DL-1", code: "DIST-2608-029", date: d(-1, 10), poRef: "PO-2608-090", unit: "IGD", items: [{ name: "NaCl 0.9% 500 ml", qty: 96 }], status: "DELIVERED", courier: "Sari Melati" },
+  { id: "DL-2", code: "DIST-2607-118", date: d(-20, 9), poRef: "PO-2607-071", unit: "Poli Gigi", items: [{ name: "Handscoon Nitrile M", qty: 100 }], status: "RECEIVED", courier: "Sari Melati", receivedBy: "drg. Fani Rahma" },
+];
+
+/* ── serah terima / BAST ── */
+export const HANDOVERS: HandoverRecord[] = [
+  {
+    id: "HO-1", code: "BAST-2607-041", kind: "VENDOR", date: d(-45, 13), ref: "PO-2607-086",
+    from: "PT Dräger Indonesia", to: "Gudang Aset — RS Harapan Medika",
+    items: [{ name: "Ventilator Transport Oxylog 3000 Plus", qty: 1, condition: "BAIK" }],
+    handedBy: "A. Setiawan (kurir principal)", receivedBy: "Bambang Prasetyo",
+    note: "Unit lengkap dengan aksesori standar; segel pabrik utuh; dokumen kalibrasi awal terlampir.",
+    checksum: "sha256:9f27c1ae44d0b771",
+  },
+  {
+    id: "HO-2", code: "BAST-2608-007", kind: "UNIT", date: d(-20, 11), ref: "DIST-2607-118",
+    from: "Gudang BHP Medis", to: "Poli Gigi",
+    items: [{ name: "Handscoon Nitrile M", qty: 100, condition: "BAIK" }],
+    handedBy: "Sari Melati (kurir)", receivedBy: "drg. Fani Rahma",
+    note: "Diterima lengkap sesuai surat jalan.",
+    checksum: "sha256:1c88e3bd02af9645",
+  },
 ];
 
 /* ── technical ── */

@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { activeStage, canDecideStage, lineState, prTotal, useApp } from "../lib/store";
 import { BtnGhost, BtnPrimary, BtnSm, Card, Chip, EmptyState, Input, Label, Modal, Select, StatusChip, Tabs, TextArea } from "../components/ui";
-import { fmtDate, fmtIDR, fmtIDRCompact, Role } from "../lib/types";
+import { fmtDate, fmtIDR, fmtIDRCompact, HandoverCondition, HandoverRecord, Role } from "../lib/types";
 import { ArrowRight, Check, ClipboardCheck, FilePlus2, PackageCheck, Pencil, Send, Truck, UserCheck, Wallet, X } from "lucide-react";
 
 const STAGE_LABELS = ["IT / Umum", "Keuangan", "COO"];
@@ -33,6 +33,14 @@ export default function Procurement() {
   const [poFor, setPoFor] = useState<string | null>(null);
   const [supplier, setSupplier] = useState("S-03");
   const [newPr, setNewPr] = useState(false);
+  /* serah terima (GRN dari vendor & serah terima ke unit) */
+  const [grnFor, setGrnFor] = useState<string | null>(null);
+  const [grnLines, setGrnLines] = useState<{ qty: number; condition: HandoverCondition }[]>([]);
+  const [grnNote, setGrnNote] = useState("");
+  const [recvFor, setRecvFor] = useState<string | null>(null);
+  const [recvLines, setRecvLines] = useState<{ qty: number; condition: HandoverCondition }[]>([]);
+  const [recvNote, setRecvNote] = useState("");
+  const [bastView, setBastView] = useState<string | null>(null);
 
   const decLine = decision ? s.purchaseRequests.find((p) => p.id === decision.prId)?.lines.find((l) => l.id === decision.lineId) : null;
   const stageIdx = decLine ? activeStage(decLine) : -1;
@@ -60,11 +68,48 @@ export default function Procurement() {
     if (canCreatePr(s.role)) caps.push("Ajukan PR");
     if (myStage !== undefined) caps.push(`Setujui tahap ${STAGE_LABELS[myStage]}`);
     if (canPo(s.role)) caps.push("Buat PO");
-    if (canGrn(s.role)) caps.push("Terima GRN");
+    if (canGrn(s.role)) caps.push("Terima GRN (BAST vendor)");
     if (canDeliver(s.role)) caps.push("Kirim ke unit");
-    if (canUnitReceive(s.role)) caps.push("Konfirmasi terima");
+    if (canUnitReceive(s.role)) caps.push("Serah terima ke unit");
     return caps;
   }, [s.role, myStage]);
+
+  /* ── serah terima: GRN dari vendor ── */
+  const grnPo = grnFor ? s.purchaseOrders.find((p) => p.id === grnFor) : null;
+  const openGrn = (poId: string) => {
+    const po = s.purchaseOrders.find((p) => p.id === poId);
+    if (!po) return;
+    setGrnFor(poId);
+    setGrnLines(po.items.map((it) => ({ qty: it.qty, condition: "BAIK" })));
+    setGrnNote(""); setErr("");
+  };
+  const submitGrn = () => {
+    if (!grnPo) return;
+    if (grnLines.some((l) => l.qty < 0)) return setErr("Qty diterima tidak boleh negatif.");
+    const lines = grnPo.items.map((it, i) => ({ name: it.name, qty: grnLines[i].qty, condition: grnLines[i].condition }));
+    receivePo(grnPo.id, lines, grnNote.trim());
+    setGrnFor(null); setErr("");
+  };
+
+  /* ── serah terima: gudang → unit ── */
+  const recvDl = recvFor ? s.deliveries.find((d) => d.id === recvFor) : null;
+  const openRecv = (dlId: string) => {
+    const dl = s.deliveries.find((d) => d.id === dlId);
+    if (!dl) return;
+    setRecvFor(dlId);
+    setRecvLines(dl.items.map((it) => ({ qty: it.qty, condition: "BAIK" })));
+    setRecvNote(""); setErr("");
+  };
+  const submitRecv = () => {
+    if (!recvDl) return;
+    const lines = recvDl.items.map((it, i) => ({ name: it.name, qty: recvLines[i].qty, condition: recvLines[i].condition }));
+    unitReceive(recvDl.id, lines, recvNote.trim());
+    setRecvFor(null); setErr("");
+  };
+
+  const condTone = (c: HandoverCondition): "ok" | "warn" | "danger" => (c === "BAIK" ? "ok" : c === "KURANG" ? "warn" : "danger");
+  const bastDetail = bastView ? s.handovers.find((h) => h.id === bastView) : null;
+  const handoverForRef = (ref: string) => s.handovers.find((h) => h.ref === ref);
 
   return (
     <div className="view-in space-y-4">
@@ -103,8 +148,8 @@ export default function Procurement() {
 
       <Card className="p-4">
         <Tabs active={tab} onChange={setTab}
-          tabs={[{ id: "pr", label: "Purchase Request" }, { id: "po", label: "Purchase Order" }, { id: "dist", label: "Distribusi ke Unit" }]}
-          counts={{ pr: s.purchaseRequests.length, po: s.purchaseOrders.length, dist: s.deliveries.filter((d) => d.status !== "RECEIVED").length }} />
+          tabs={[{ id: "pr", label: "Purchase Request" }, { id: "po", label: "Purchase Order" }, { id: "dist", label: "Distribusi ke Unit" }, { id: "bast", label: "Serah Terima (BAST)" }]}
+          counts={{ pr: s.purchaseRequests.length, po: s.purchaseOrders.length, dist: s.deliveries.filter((d) => d.status !== "RECEIVED").length, bast: s.handovers.length }} />
         <div className="pt-4">
           {tab === "pr" && (
             <div className="space-y-4">
@@ -218,8 +263,15 @@ export default function Procurement() {
                     <div className="mt-2.5 flex items-center justify-between border-t border-line pt-2.5">
                       <span className="num font-mono text-[12px] font-bold text-ink">{fmtIDR(p.total)}</span>
                       {p.status === "SENT" ? (
-                        <BtnSm disabled={!canGrn(s.role)} title={!canGrn(s.role) ? "Hanya Gudang / Umum" : undefined} onClick={() => receivePo(p.id)} className="!border-ok/50 !text-ok"><Truck size={12} /> {p.items.some((it) => it.kind === "ASSET") ? "Terima & Daftarkan Aset" : "Terima (GRN)"}</BtnSm>
-                      ) : <span className="font-mono text-[10px] font-bold text-ok">diterima ✓</span>}
+                        <BtnSm disabled={!canGrn(s.role)} title={!canGrn(s.role) ? "Hanya Gudang / Umum" : undefined} onClick={() => openGrn(p.id)} className="!border-ok/50 !text-ok"><PackageCheck size={12} /> Terima & Buat BAST</BtnSm>
+                      ) : (
+                        <span className="flex items-center gap-1.5 font-mono text-[10px] font-bold text-ok">
+                          diterima ✓
+                          {handoverForRef(p.code) && (
+                            <button onClick={() => setBastView(handoverForRef(p.code)!.id)} className="rounded border border-ok/40 bg-okbg px-1.5 py-0.5 text-[9px] text-ok transition hover:bg-ok/20">{handoverForRef(p.code)!.code}</button>
+                          )}
+                        </span>
+                      )}
                     </div>
                   </div>
                 );
@@ -269,14 +321,52 @@ export default function Procurement() {
                       )}
                       {dl.status === "DELIVERED" && (
                         (isMine && s.role === "Kepala Unit") || canUnitReceive(s.role) ? (
-                          <BtnSm onClick={() => unitReceive(dl.id)} className="!border-ok/60 !text-ok"><Check size={12} /> Konfirmasi Terima</BtnSm>
+                          <BtnSm onClick={() => openRecv(dl.id)} className="!border-ok/60 !text-ok"><UserCheck size={12} /> Serah Terima & Tanda Tangan</BtnSm>
                         ) : (
                           <span className="font-mono text-[9.5px] text-mute">masuk sebagai Kepala Unit <b className="text-pine-700">{dl.unit}</b> untuk konfirmasi</span>
                         )
                       )}
-                      {dl.status === "RECEIVED" && <span className="font-mono text-[10px] font-bold text-ok">alur selesai ✓</span>}
+                      {dl.status === "RECEIVED" && (
+                        <span className="flex items-center gap-1.5 font-mono text-[10px] font-bold text-ok">
+                          alur selesai ✓
+                          {handoverForRef(dl.code) && (
+                            <button onClick={() => setBastView(handoverForRef(dl.code)!.id)} className="rounded border border-ok/40 bg-okbg px-1.5 py-0.5 text-[9px] text-ok transition hover:bg-ok/20">{handoverForRef(dl.code)!.code}</button>
+                          )}
+                        </span>
+                      )}
                     </div>
                   </div>
+                );
+              })}
+            </div>
+          )}
+
+          {tab === "bast" && (
+            <div className="space-y-3">
+              {s.handovers.length === 0 && <EmptyState title="Belum ada berita acara" sub="BAST dibuat otomatis saat Terima GRN (dari vendor) dan Serah Terima ke unit." />}
+              {s.handovers.map((h, i) => {
+                const short = h.items.filter((x) => x.condition !== "BAIK").length;
+                return (
+                  <button key={h.id} onClick={() => setBastView(h.id)} style={{ animationDelay: `${i * 45}ms` }}
+                    className="row-in flex w-full flex-wrap items-center justify-between gap-2 rounded-lg border border-line bg-paper p-4 text-left transition hover:-translate-y-0.5 hover:border-pine-500/50 hover:shadow-lg">
+                    <div className="flex items-center gap-3">
+                      <span className={`flex h-10 w-10 items-center justify-center rounded-md ${h.kind === "VENDOR" ? "bg-infobg text-info" : "bg-pine-100 text-pine-700"}`}>
+                        {h.kind === "VENDOR" ? <PackageCheck size={18} /> : <UserCheck size={18} />}
+                      </span>
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-mono text-[13px] font-bold text-ink">{h.code}</p>
+                          <Chip tone={h.kind === "VENDOR" ? "info" : "pine"}>{h.kind === "VENDOR" ? "VENDOR → GUDANG" : "GUDANG → UNIT"}</Chip>
+                          {short > 0 && <Chip tone="warn" dot>{short} catatan kondisi</Chip>}
+                        </div>
+                        <p className="mt-0.5 font-mono text-[10px] text-mute">{h.from} → {h.to} · ref {h.ref} · {fmtDate(h.date)}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="font-mono text-[10.5px] text-mute">{h.items.length} item · penerima <b className="text-ink2">{h.receivedBy}</b></span>
+                      <ArrowRight size={15} className="text-line2" />
+                    </div>
+                  </button>
                 );
               })}
             </div>
@@ -325,7 +415,123 @@ export default function Procurement() {
       {/* modal ajukan PR */}
       <NewPrModal open={newPr} onClose={() => setNewPr(false)} onSubmit={(lines, needBy) => { createPr(lines, needBy); setNewPr(false); }} />
 
-      <p className="font-mono text-[10.5px] text-mute">Persetujuan per-barang tercatat di audit trail · GRN BHP posting ledger (BR-003) · GRN aset daftarkan equipment tertelusur ke PO (BR-001/002).</p>
+      {/* ── modal GRN: verifikasi serah terima dari vendor + terbitkan BAST ── */}
+      <Modal open={!!grnPo} onClose={() => setGrnFor(null)} wide kicker={`GRN · ${grnPo?.code ?? ""}`} title="Terima barang & buat BAST vendor"
+        footer={<><BtnGhost onClick={() => setGrnFor(null)}>Batal</BtnGhost><BtnPrimary onClick={submitGrn}><PackageCheck size={13} /> Terima & Terbitkan BAST</BtnPrimary></>}>
+        {grnPo && (
+          <div className="space-y-3.5">
+            <p className="rounded-md bg-infobg px-3 py-2 text-[11.5px] leading-relaxed text-info">
+              Periksa fisik barang terhadap PO. Qty diterima & kondisi per baris akan dicetak di <b>BAST (Berita Acara Serah Terima)</b> dan tercatat di audit trail. Barang kurang/rusak otomatis diberi catatan tindak-lanjut ke vendor.
+            </p>
+            <div className="space-y-2">
+              {grnPo.items.map((it, i) => (
+                <div key={i} className="rounded-md border border-line bg-canvas/50 p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="flex items-center gap-1.5 text-[12px] font-semibold text-ink">
+                      <Chip tone={it.kind === "ASSET" ? "pine" : "neutral"} className="!text-[8px]">{it.kind}</Chip>
+                      {it.name} <span className="font-mono text-[10px] text-mute">PO ×{it.qty}</span>
+                    </span>
+                    <Chip tone={condTone(grnLines[i]?.condition ?? "BAIK")}>{grnLines[i]?.condition ?? "BAIK"}</Chip>
+                  </div>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <Label>Qty diterima</Label>
+                    <Input type="number" className="!w-24" value={grnLines[i]?.qty ?? 0}
+                      onChange={(e) => setGrnLines(grnLines.map((l, j) => (j === i ? { ...l, qty: Number(e.target.value) } : l)))} />
+                    <div className="flex gap-1.5">
+                      {(["BAIK", "KURANG", "RUSAK"] as HandoverCondition[]).map((c) => (
+                        <button key={c} onClick={() => setGrnLines(grnLines.map((l, j) => (j === i ? { ...l, condition: c } : l)))}
+                          className={`rounded border px-2 py-1 font-mono text-[10px] font-bold transition ${(grnLines[i]?.condition ?? "BAIK") === c
+                            ? c === "BAIK" ? "border-ok/50 bg-okbg text-ok" : c === "KURANG" ? "border-warn/50 bg-warnbg text-warn" : "border-danger/50 bg-dangerbg text-danger"
+                            : "border-line bg-card text-mute hover:border-line2"}`}>{c}</button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div><Label>Catatan serah terima (opsional)</Label>
+              <TextArea value={grnNote} onChange={(e) => setGrnNote(e.target.value)} placeholder="cth: segel utuh, dokumen lengkap…" /></div>
+            {err && <p className="rounded-md bg-dangerbg px-3 py-2 text-xs font-semibold text-danger">{err}</p>}
+          </div>
+        )}
+      </Modal>
+
+      {/* ── modal serah terima: gudang → unit + tanda tangan ── */}
+      <Modal open={!!recvDl} onClose={() => setRecvFor(null)} wide kicker={`Serah terima · ${recvDl?.code ?? ""}`} title={`Serah terima ke unit ${recvDl?.unit ?? ""}`}
+        footer={<><BtnGhost onClick={() => setRecvFor(null)}>Batal</BtnGhost><BtnPrimary onClick={submitRecv}><UserCheck size={13} /> Tanda Tangani & Terima</BtnPrimary></>}>
+        {recvDl && (
+          <div className="space-y-3.5">
+            <p className="rounded-md bg-okbg px-3 py-2 text-[11.5px] leading-relaxed text-ok">
+              Unit <b>{recvDl.unit}</b> memverifikasi barang dari <b>{recvDl.courier ?? "gudang"}</b>. Setelah ditandatangani, BAST diterbitkan dan pengadaan dinyatakan selesai untuk unit ini.
+            </p>
+            <div className="space-y-2">
+              {recvDl.items.map((it, i) => (
+                <div key={i} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-line bg-canvas/50 px-3 py-2.5">
+                  <span className="text-[12px] font-semibold text-ink">{it.name} <span className="font-mono text-[10px] text-mute">×{it.qty}</span></span>
+                  <div className="flex gap-1.5">
+                    {(["BAIK", "KURANG", "RUSAK"] as HandoverCondition[]).map((c) => (
+                      <button key={c} onClick={() => setRecvLines(recvLines.map((l, j) => (j === i ? { ...l, condition: c } : l)))}
+                        className={`rounded border px-2 py-1 font-mono text-[10px] font-bold transition ${(recvLines[i]?.condition ?? "BAIK") === c
+                          ? c === "BAIK" ? "border-ok/50 bg-okbg text-ok" : c === "KURANG" ? "border-warn/50 bg-warnbg text-warn" : "border-danger/50 bg-dangerbg text-danger"
+                          : "border-line bg-card text-mute hover:border-line2"}`}>{c}</button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div><Label>Catatan unit penerima (opsional)</Label>
+              <TextArea value={recvNote} onChange={(e) => setRecvNote(e.target.value)} placeholder="cth: diterima lengkap, siap digunakan…" /></div>
+            {err && <p className="rounded-md bg-dangerbg px-3 py-2 text-xs font-semibold text-danger">{err}</p>}
+          </div>
+        )}
+      </Modal>
+
+      {/* ── modal detail BAST (dokumen resmi) ── */}
+      <Modal open={!!bastDetail} onClose={() => setBastView(null)} wide kicker="Dokumen serah terima" title={bastDetail?.code ?? ""}
+        footer={<BtnPrimary onClick={() => setBastView(null)}>Tutup</BtnPrimary>}>
+        {bastDetail && (
+          <div className="space-y-3.5">
+            <div className="rounded-lg border-2 border-pine-700/40 bg-card p-4">
+              <p className="text-center font-display text-[15px] font-black uppercase tracking-wide text-ink">Berita Acara Serah Terima</p>
+              <p className="mt-0.5 text-center font-mono text-[10px] text-mute">Nomor: {bastDetail.code} · Ref {bastDetail.ref} · {fmtDate(bastDetail.date)}</p>
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                <div className="rounded-md bg-canvas/60 p-2.5">
+                  <p className="font-mono text-[9px] font-bold uppercase tracking-wide text-mute">Pihak Pertama (menyerahkan)</p>
+                  <p className="mt-1 text-[12px] font-bold text-ink">{bastDetail.from}</p>
+                  <p className="font-mono text-[10px] text-mute">{bastDetail.handedBy ?? "—"}</p>
+                </div>
+                <div className="rounded-md bg-canvas/60 p-2.5">
+                  <p className="font-mono text-[9px] font-bold uppercase tracking-wide text-mute">Pihak Kedua (menerima)</p>
+                  <p className="mt-1 text-[12px] font-bold text-ink">{bastDetail.to}</p>
+                  <p className="font-mono text-[10px] text-mute">{bastDetail.receivedBy}</p>
+                </div>
+              </div>
+              <div className="mt-3 overflow-hidden rounded-md border border-line">
+                <table className="w-full text-left">
+                  <thead><tr className="border-b border-line bg-canvas/70 font-mono text-[9px] font-bold uppercase tracking-wide text-mute">
+                    <th className="px-2.5 py-1.5">Barang</th><th className="px-2.5 py-1.5 text-right">Qty</th><th className="px-2.5 py-1.5">Kondisi</th></tr></thead>
+                  <tbody className="divide-y divide-line">
+                    {bastDetail.items.map((it, i) => (
+                      <tr key={i}>
+                        <td className="px-2.5 py-1.5 text-[11.5px] font-semibold text-ink2">{it.name}</td>
+                        <td className="num px-2.5 py-1.5 text-right font-mono text-[11px]">{it.qty}</td>
+                        <td className="px-2.5 py-1.5"><Chip tone={condTone(it.condition)}>{it.condition}</Chip></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {bastDetail.note && <p className="mt-2.5 rounded-md bg-warnbg/60 px-2.5 py-1.5 text-[11px] italic text-ink2">“{bastDetail.note}”</p>}
+              <div className="mt-3 flex items-center justify-between border-t border-dashed border-line pt-2.5">
+                <span className="font-mono text-[9px] text-mute">checksum: {bastDetail.checksum}</span>
+                <span className="flex items-center gap-1.5 font-mono text-[9px] font-bold text-ok"><Check size={11} /> tercatat di audit trail</span>
+              </div>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      <p className="font-mono text-[10.5px] text-mute">Persetujuan per-barang tercatat di audit trail · GRN BHP posting ledger (BR-003) · GRN aset daftarkan equipment tertelusur ke PO (BR-001/002) · setiap serah terima menerbitkan BAST (pencatatan).</p>
     </div>
   );
 }

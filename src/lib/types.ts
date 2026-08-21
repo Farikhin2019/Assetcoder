@@ -41,6 +41,16 @@ export interface PurchaseRequest { id: string; code: string; date: string; reque
 export interface PurchaseOrder { id: string; code: string; date: string; supplierId: string; items: { kind: "ITEM" | "ASSET"; sku?: string; name: string; category?: string; qty: number; price: number }[]; total: number; eta: string; status: "SENT" | "RECEIVED"; prRef: string; }
 export interface Delivery { id: string; code: string; date: string; poRef: string; unit: string; items: { name: string; qty: number }[]; status: "PENDING" | "DELIVERED" | "RECEIVED"; courier?: string; receivedBy?: string; }
 
+/* ── Serah terima / BAST (pencatatan penerimaan dari vendor & penyerahan ke unit) ── */
+export type HandoverKind = "VENDOR" | "UNIT";
+export type HandoverCondition = "BAIK" | "KURANG" | "RUSAK";
+export interface HandoverLine { name: string; qty: number; condition: HandoverCondition; }
+export interface HandoverRecord {
+  id: string; code: string; kind: HandoverKind; date: string; ref: string;
+  from: string; to: string; items: HandoverLine[];
+  receivedBy: string; handedBy?: string; note?: string; checksum: string;
+}
+
 export interface WorkOrder { id: string; wo: string; eqId: string; type: "PREVENTIVE" | "CORRECTIVE"; techId: string; scheduled: string; status: "SCHEDULED" | "IN_PROGRESS" | "CLOSED"; note: string; laborCost: number; }
 export interface CalibrationRecord { id: string; eqId: string; date: string; result: "PASS" | "FAIL"; cert: string; nextDue: string; cost: number; }
 export interface Complaint { id: string; code: string; eqId: string; date: string; reporter: string; priority: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW"; description: string; status: "OPEN" | "IN_PROGRESS" | "RESOLVED" | "CLOSED"; slaHours: number; }

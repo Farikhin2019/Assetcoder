@@ -1,13 +1,14 @@
 import React, { createContext, useContext, useMemo, useReducer } from "react";
 import {
-  AuditEntry, Building, CalibrationRecord, Complaint, Delivery, Equipment, Floor, Hospital, InventoryItem,
-  LedgerEntry, Notif, PRLine, PermLevel, PurchaseOrder, PurchaseRequest, ROLE_PERMS, RoomInfo, Role, ROLE_USER,
-  SLA_BY_PRIORITY, StageDecision, Supplier, Technician, TimelineEvent, Toast, UnitNode, UserAccount, View,
-  VIEW_PERM, WorkOrder, d, fmtIDR, uid,
+  AuditEntry, Building, CalibrationRecord, Complaint, Delivery, Equipment, Floor, HandoverLine, HandoverRecord,
+  Hospital, InventoryItem, LedgerEntry, Notif, PRLine, PermLevel, PurchaseOrder, PurchaseRequest, ROLE_PERMS,
+  RoomInfo, Role, ROLE_USER, SLA_BY_PRIORITY, StageDecision, Supplier, Technician, TimelineEvent, Toast, UnitNode,
+  UserAccount, View, VIEW_PERM, WorkOrder, d, fmtIDR, uid,
 } from "./types";
 import {
-  AUDIT, BUILDINGS, CALIBRATIONS, COMPLAINTS, DELIVERIES, EQUIPMENT, FLOORS, HOSPITALS, ITEMS, LEDGER_INIT,
-  NOTIFS, PURCHASE_ORDERS, PURCHASE_REQUESTS, ROOMS, SUPPLIERS, TECHNICIANS, TIMELINE, UNITS, USERS, WORK_ORDERS,
+  AUDIT, BUILDINGS, CALIBRATIONS, COMPLAINTS, DELIVERIES, EQUIPMENT, FLOORS, HANDOVERS, HOSPITALS, ITEMS,
+  LEDGER_INIT, NOTIFS, PURCHASE_ORDERS, PURCHASE_REQUESTS, ROOMS, SUPPLIERS, TECHNICIANS, TIMELINE, UNITS, USERS,
+  WORK_ORDERS,
 } from "./data";
 
 export interface AppState {
@@ -18,6 +19,7 @@ export interface AppState {
   equipment: Equipment[]; timeline: TimelineEvent[];
   items: InventoryItem[]; ledger: LedgerEntry[];
   purchaseRequests: PurchaseRequest[]; purchaseOrders: PurchaseOrder[]; deliveries: Delivery[];
+  handovers: HandoverRecord[];
   workOrders: WorkOrder[]; calibrations: CalibrationRecord[]; complaints: Complaint[];
   suppliers: Supplier[]; technicians: Technician[];
   audit: AuditEntry[]; notifs: Notif[]; toasts: Toast[];
@@ -36,8 +38,9 @@ type Act =
   | { t: "PR_DECIDE_ALL"; prId: string; ok: boolean; note: string }
   | { t: "PR_REVISE"; prId: string; lineId: string; qty: number }
   | { t: "PO_CREATE"; prId: string; supplierId: string }
-  | { t: "PO_RECEIVE"; poId: string }
-  | { t: "DELIVER"; id: string } | { t: "UNIT_RECEIVE"; id: string }
+  | { t: "PO_RECEIVE"; poId: string; lines: HandoverLine[]; note: string }
+  | { t: "DELIVER"; id: string }
+  | { t: "UNIT_RECEIVE"; id: string; lines: HandoverLine[]; note: string }
   | { t: "WO_START"; id: string } | { t: "WO_SUBMIT"; id: string; note: string }
   | { t: "CALIBRATE"; eqId: string; result: "PASS" | "FAIL"; cert: string; cost: number; nextDue: string }
   | { t: "CMP_STATUS"; id: string; status: Complaint["status"] }
@@ -90,6 +93,7 @@ const INIT: AppState = {
   equipment: EQUIPMENT, timeline: TIMELINE,
   items: ITEMS, ledger: LEDGER_INIT,
   purchaseRequests: PURCHASE_REQUESTS, purchaseOrders: PURCHASE_ORDERS, deliveries: DELIVERIES,
+  handovers: HANDOVERS,
   workOrders: WORK_ORDERS, calibrations: CALIBRATIONS, complaints: COMPLAINTS,
   suppliers: SUPPLIERS, technicians: TECHNICIANS,
   audit: AUDIT, notifs: NOTIFS, toasts: [],
@@ -241,22 +245,39 @@ function coreReducer(s: AppState, a: Act): AppState {
       const newEquipment: Equipment[] = [];
       const newTimeline: TimelineEvent[] = [];
       const deliveryItems: { name: string; qty: number }[] = [];
+      const supplierName = s.suppliers.find((x) => x.id === po.supplierId)?.name ?? "Vendor";
+      const shortQty = a.lines.filter((l) => l.condition === "KURANG" || l.condition === "RUSAK").length;
 
-      for (const it of po.items) {
+      /* baris terverifikasi dipetakan berpasangan dengan item PO (urut sama) */
+      po.items.forEach((it, i) => {
+        const recvQty = a.lines[i]?.qty ?? it.qty;
         if (it.kind !== "ASSET") {
-          const item = s.items.find((i) => i.sku === it.sku);
-          if (!item) continue;
-          const newBal = item.stock + it.qty;
-          entries.push(mkLedger(it.sku!, "RECEIPT", it.qty, newBal, me.name, po.code));
-          next = { ...next, items: next.items.map((i) => (i.sku === it.sku ? { ...i, stock: newBal } : i)) };
-          deliveryItems.push({ name: it.name, qty: it.qty });
-          continue;
+          const item = s.items.find((x) => x.sku === it.sku);
+          if (!item || recvQty <= 0) return;
+          const newBal = item.stock + recvQty;
+          entries.push(mkLedger(it.sku!, "RECEIPT", recvQty, newBal, me.name, po.code));
+          next = { ...next, items: next.items.map((x) => (x.sku === it.sku ? { ...x, stock: newBal } : x)) };
+          deliveryItems.push({ name: it.name, qty: recvQty });
+          return;
         }
-        for (let u = 0; u < it.qty; u++) {
+        for (let u = 0; u < recvQty; u++) {
           const eq = mkEquipmentFromPo(s.equipment.length + newEquipment.length + 1, it.name, it.category ?? "Monitoring", it.price, po.supplierId, po.code, me.name);
           newEquipment.push(eq);
           newTimeline.push(mkTimeline(eq.id, "LIFECYCLE", `Registrasi aset dari pengadaan — ${eq.code}`, `${it.name} diterima via ${po.code} · ${fmtIDR(it.price)}.`, me.name));
         }
+      });
+
+      /* ── BAST vendor → gudang (pencatatan serah terima dari vendor) ── */
+      const bastCode = "BAST-2608-" + String(40 + s.handovers.length).padStart(3, "0");
+      const bast: HandoverRecord = {
+        id: "HO-" + uid(), code: bastCode, kind: "VENDOR", date: now(), ref: po.code,
+        from: supplierName, to: "Gudang — RS Harapan Medika",
+        items: a.lines, handedBy: supplierName, receivedBy: me.name,
+        note: a.note || (shortQty > 0 ? `${shortQty} baris diterima kurang/rusak — tindak lanjut ke vendor.` : "Diterima lengkap sesuai PO."),
+        checksum: "sha256:" + uid() + uid(),
+      };
+      for (const eq of newEquipment) {
+        newTimeline.push(mkTimeline(eq.id, "PROCUREMENT", `Serah terima vendor → Gudang (${bastCode})`, `Pihak pertama: ${supplierName} · pihak kedua: ${me.name} (Gudang).`, me.name));
       }
 
       const pr = s.purchaseRequests.find((p) => p.code === po.prRef);
@@ -272,12 +293,18 @@ function coreReducer(s: AppState, a: Act): AppState {
         equipment: [...next.equipment, ...newEquipment],
         timeline: [...newTimeline, ...next.timeline],
         deliveries,
-        notifs: newEquipment.length > 0 ? [mkNotif("ASSET_REGISTERED", `${newEquipment.length} aset baru dari ${po.code} terdaftar.`, newEquipment[0].id), ...next.notifs] : next.notifs,
+        handovers: [bast, ...next.handovers],
+        notifs: [
+          mkNotif("BAST", `BAST ${bastCode} diterbitkan — serah terima ${po.code} dari ${supplierName}.`, bastCode),
+          ...(newEquipment.length > 0 ? [mkNotif("ASSET_REGISTERED", `${newEquipment.length} aset baru dari ${po.code} terdaftar.`, newEquipment[0].id)] : []),
+          ...next.notifs,
+        ],
         audit: [
+          mkAudit(me.name, s.role, "PROCUREMENT.BAST", "handover", bastCode, `Serah terima vendor → gudang (${po.code})`, `${a.lines.length} baris · penerima ${me.name}`),
           ...newEquipment.map((eq) => mkAudit(me.name, s.role, "ASSET.REGISTER", "asset", eq.code, `Dari pengadaan ${po.code}`, eq.name)),
           mkAudit(me.name, s.role, "PROCUREMENT.GRN", "goods_receipt", po.code, undefined, `${po.items.length} line diterima`), ...next.audit,
         ],
-        toasts: [...next.toasts, okToast(newEquipment.length > 0 ? `${po.code} diterima — ${newEquipment.length} aset didaftarkan` : `${po.code} diterima — GRN & ledger diposting, pengiriman ke ${destUnit} dibuat`)],
+        toasts: [...next.toasts, okToast(newEquipment.length > 0 ? `${po.code} diterima — BAST ${bastCode} & ${newEquipment.length} aset didaftarkan` : `${po.code} diterima — BAST ${bastCode}, GRN & ledger diposting`)],
       };
     }
 
@@ -293,10 +320,25 @@ function coreReducer(s: AppState, a: Act): AppState {
 
     case "UNIT_RECEIVE": {
       const dl = s.deliveries.find((x) => x.id === a.id)!;
+      /* ── BAST gudang → unit (pencatatan serah terima ke unit peminta) ── */
+      const bastCode = "BAST-2608-" + String(40 + s.handovers.length).padStart(3, "0");
+      const bast: HandoverRecord = {
+        id: "HO-" + uid(), code: bastCode, kind: "UNIT", date: now(), ref: dl.code,
+        from: "Gudang — RS Harapan Medika", to: `Unit ${dl.unit}`,
+        items: a.lines, handedBy: dl.courier ?? "Gudang", receivedBy: me.name,
+        note: a.note || "Diterima lengkap dalam kondisi baik.",
+        checksum: "sha256:" + uid() + uid(),
+      };
       return {
-        ...s, deliveries: s.deliveries.map((x) => (x.id === a.id ? { ...x, status: "RECEIVED", receivedBy: me.name } : x)),
-        audit: [mkAudit(me.name, s.role, "LOGISTICS.UNIT_RECEIPT", "delivery", dl.code, "Serah terima unit peminta", `${dl.items.length} item diterima ${dl.unit}`), ...s.audit],
-        toasts: [...s.toasts, okToast(`Unit ${dl.unit} menerima ${dl.code} — alur pengadaan selesai ✓`)],
+        ...s,
+        deliveries: s.deliveries.map((x) => (x.id === a.id ? { ...x, status: "RECEIVED", receivedBy: me.name } : x)),
+        handovers: [bast, ...s.handovers],
+        audit: [
+          mkAudit(me.name, s.role, "LOGISTICS.HANDOVER", "handover", bastCode, `Serah terima gudang → unit ${dl.unit}`, `${a.lines.length} item · penerima ${me.name}`),
+          mkAudit(me.name, s.role, "LOGISTICS.UNIT_RECEIPT", "delivery", dl.code, "Serah terima unit peminta", `${dl.items.length} item diterima ${dl.unit}`), ...s.audit,
+        ],
+        notifs: [mkNotif("BAST", `BAST ${bastCode} — unit ${dl.unit} menerima ${dl.code}.`, bastCode), ...s.notifs],
+        toasts: [...s.toasts, okToast(`Unit ${dl.unit} menerima ${dl.code} — BAST ${bastCode} diterbitkan, alur selesai ✓`)],
       };
     }
 
@@ -454,8 +496,8 @@ interface Api {
   prDecideAll: (prId: string, ok: boolean, note: string) => void;
   prRevise: (prId: string, lineId: string, qty: number) => void;
   createPo: (prId: string, supplierId: string) => void;
-  receivePo: (poId: string) => void;
-  deliver: (id: string) => void; unitReceive: (id: string) => void;
+  receivePo: (poId: string, lines: HandoverLine[], note: string) => void;
+  deliver: (id: string) => void; unitReceive: (id: string, lines: HandoverLine[], note: string) => void;
   startWo: (id: string) => void; submitWo: (id: string, note: string) => void;
   calibrate: (eqId: string, result: "PASS" | "FAIL", cert: string, cost: number, nextDue: string) => void;
   setCmpStatus: (id: string, status: Complaint["status"]) => void;
@@ -481,9 +523,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     prDecideAll: (prId, ok, note) => dispatch({ t: "PR_DECIDE_ALL", prId, ok, note }),
     prRevise: (prId, lineId, qty) => dispatch({ t: "PR_REVISE", prId, lineId, qty }),
     createPo: (prId, supplierId) => dispatch({ t: "PO_CREATE", prId, supplierId }),
-    receivePo: (poId) => dispatch({ t: "PO_RECEIVE", poId }),
+    receivePo: (poId, lines, note) => dispatch({ t: "PO_RECEIVE", poId, lines, note }),
     deliver: (id) => dispatch({ t: "DELIVER", id }),
-    unitReceive: (id) => dispatch({ t: "UNIT_RECEIVE", id }),
+    unitReceive: (id, lines, note) => dispatch({ t: "UNIT_RECEIVE", id, lines, note }),
     startWo: (id) => dispatch({ t: "WO_START", id }),
     submitWo: (id, note) => dispatch({ t: "WO_SUBMIT", id, note }),
     calibrate: (eqId, result, cert, cost, nextDue) => dispatch({ t: "CALIBRATE", eqId, result, cert, cost, nextDue }),
