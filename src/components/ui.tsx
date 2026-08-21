@@ -168,6 +168,31 @@ export function Kpi({ label, value, unit, delta, tone = "pine", spark, onClick }
   );
 }
 
+/* ── glyph QR deterministik per aset (identitas visual label) ── */
+export function QRGlyph({ seed, size = 84, tone = "#12362c" }: { seed: string; size?: number; tone?: string }) {
+  const n = 15;
+  let h = 2166136261;
+  for (let i = 0; i < seed.length; i++) { h ^= seed.charCodeAt(i); h = Math.imul(h, 16777619); }
+  const rand = () => { h ^= h << 13; h ^= h >>> 17; h ^= h << 5; return ((h >>> 0) % 100) / 100; };
+  const cells: React.ReactNode[] = [];
+  const inFinder = (r: number, c: number) => (r < 5 && c < 5) || (r < 5 && c >= n - 5) || (r >= n - 5 && c < 5);
+  for (let r = 0; r < n; r++)
+    for (let c = 0; c < n; c++)
+      if (!inFinder(r, c) && rand() > 0.52) cells.push(<rect key={`${r}-${c}`} x={c} y={r} width="0.92" height="0.92" />);
+  const finder = (x: number, y: number) => (
+    <g key={`f${x}${y}`}>
+      <rect x={x} y={y} width="4.6" height="4.6" fill="none" strokeWidth="0.9" stroke={tone} />
+      <rect x={x + 1.6} y={y + 1.6} width="1.4" height="1.4" fill={tone} stroke="none" />
+    </g>
+  );
+  return (
+    <svg viewBox={`-0.6 -0.6 ${n + 1.2} ${n + 1.2}`} width={size} height={size} aria-label={`QR ${seed}`}>
+      <g fill={tone} stroke={tone}>{cells}</g>
+      {finder(0.2, 0.2)}{finder(n - 4.8, 0.2)}{finder(0.2, n - 4.8)}
+    </svg>
+  );
+}
+
 export const EmptyState = ({ title, sub }: { title: string; sub?: string }) => (
   <div className="flex flex-col items-center justify-center gap-1 py-12 text-center">
     <div className="mb-2 flex h-11 w-11 items-center justify-center rounded-full border border-dashed border-line2 text-mute"><Info size={17} /></div>

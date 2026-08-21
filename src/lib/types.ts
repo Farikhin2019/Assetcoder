@@ -19,6 +19,9 @@ export interface Floor { id: string; buildingId: string; name: string; }
 export interface RoomInfo { id: string; buildingId: string; floorId: string; name: string; unit: string; }
 export interface UnitNode { id: string; name: string; head: string; }
 
+export interface AssetPhoto { id: string; name: string; size: string; mime: string; dataUrl: string; date: string; by: string; }
+export interface AssetDoc { id: string; name: string; size: string; mime: string; checksum: string; dataUrl: string; date: string; by: string; }
+
 export interface Equipment {
   id: string; code: string; name: string; category: string; brand: string; model: string; serial: string;
   acqDate: string; acqCost: number; supplierId: string;
@@ -28,7 +31,18 @@ export interface Equipment {
   risk: "HIGH" | "MEDIUM" | "LOW";
   calStatus: "VALID" | "DUE_SOON" | "EXPIRED" | "NOT_REQUIRED";
   nextMaint: string; utilization: number; poRef?: string;
+  photos?: AssetPhoto[]; docs?: AssetDoc[];
 }
+
+/* ── penomoran aset: AST-RS-{tahun}-{urutan 6 digit} (BR-001/002) ── */
+export const assetSeqOf = (code: string) => Number(code.split("-").pop()) || 0;
+export const nextAssetCode = (codes: string[]) => {
+  const year = new Date().getFullYear();
+  const maxSeq = codes.reduce((m, c) => Math.max(m, assetSeqOf(c)), 0);
+  return `AST-RS-${year}-${String(maxSeq + 1).padStart(6, "0")}`;
+};
+export const fmtSize = (bytes: number) =>
+  bytes >= 1e6 ? (bytes / 1e6).toFixed(1) + " MB" : bytes >= 1e3 ? Math.round(bytes / 1e3) + " KB" : bytes + " B";
 
 export interface InventoryItem { sku: string; name: string; category: string; uom: string; warehouse: string; stock: number; min: number; reorder: number; unitCost: number; method: "FIFO" | "FEFO"; }
 export type TxType = "RECEIPT" | "ISSUE" | "CONSUMPTION" | "ADJUSTMENT" | "OPENING_BALANCE" | "STOCK_OPNAME";

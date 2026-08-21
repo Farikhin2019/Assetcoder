@@ -1,9 +1,9 @@
 import React, { createContext, useContext, useMemo, useReducer } from "react";
 import {
-  AuditEntry, Building, CalibrationRecord, Complaint, Delivery, Equipment, Floor, HandoverLine, HandoverRecord,
-  Hospital, InventoryItem, LedgerEntry, Notif, PRLine, PermLevel, PurchaseOrder, PurchaseRequest, ROLE_PERMS,
-  RoomInfo, Role, ROLE_USER, SLA_BY_PRIORITY, StageDecision, Supplier, Technician, TimelineEvent, Toast, UnitNode,
-  UserAccount, View, VIEW_PERM, WorkOrder, d, fmtIDR, uid,
+  AssetDoc, AssetPhoto, AuditEntry, Building, CalibrationRecord, Complaint, Delivery, Equipment, Floor,
+  HandoverLine, HandoverRecord, Hospital, InventoryItem, LedgerEntry, Notif, PRLine, PermLevel, PurchaseOrder,
+  PurchaseRequest, ROLE_PERMS, RoomInfo, Role, ROLE_USER, SLA_BY_PRIORITY, StageDecision, Supplier, Technician,
+  TimelineEvent, Toast, UnitNode, UserAccount, View, VIEW_PERM, WorkOrder, d, fmtIDR, uid,
 } from "./types";
 import {
   AUDIT, BUILDINGS, CALIBRATIONS, COMPLAINTS, DELIVERIES, EQUIPMENT, FLOORS, HANDOVERS, HOSPITALS, ITEMS,
@@ -45,7 +45,10 @@ type Act =
   | { t: "CALIBRATE"; eqId: string; result: "PASS" | "FAIL"; cert: string; cost: number; nextDue: string }
   | { t: "CMP_STATUS"; id: string; status: Complaint["status"] }
   | { t: "LOC_SAVE"; kind: LocKind; id?: string; data: Record<string, string> }
-  | { t: "LOC_DELETE"; kind: LocKind; id: string };
+  | { t: "LOC_DELETE"; kind: LocKind; id: string }
+  | { t: "EQUIP_ADD_PHOTOS"; eqId: string; photos: AssetPhoto[] }
+  | { t: "EQUIP_ADD_DOCS"; eqId: string; docs: AssetDoc[] }
+  | { t: "PRINT_LABEL"; eqId: string };
 
 const now = () => new Date().toISOString();
 const mkAudit = (actor: string, role: string, action: string, entity: string, entityId: string, reason?: string, delta?: string): AuditEntry =>
@@ -342,6 +345,38 @@ function coreReducer(s: AppState, a: Act): AppState {
       };
     }
 
+    /* ── upload foto / dokumen aset (metadata + timeline + audit) ── */
+    case "EQUIP_ADD_PHOTOS": {
+      const eq = s.equipment.find((e) => e.id === a.eqId)!;
+      return {
+        ...s,
+        equipment: s.equipment.map((e) => (e.id === a.eqId ? { ...e, photos: [...a.photos, ...(e.photos ?? [])] } : e)),
+        timeline: [mkTimeline(a.eqId, "DOCUMENT", `${a.photos.length} foto diunggah`, `Dokumentasi visual ${eq.name} (${a.photos.map((p) => p.name).join(", ")}).`, me.name), ...s.timeline],
+        audit: [mkAudit(me.name, s.role, "ASSET.UPLOAD", "asset_attachment", eq.code, `Foto: ${a.photos.map((p) => p.name).join(", ")}`, `${a.photos.length} file`), ...s.audit],
+        toasts: [...s.toasts, okToast(`${a.photos.length} foto tersimpan di ${eq.code}`)],
+      };
+    }
+
+    case "EQUIP_ADD_DOCS": {
+      const eq = s.equipment.find((e) => e.id === a.eqId)!;
+      return {
+        ...s,
+        equipment: s.equipment.map((e) => (e.id === a.eqId ? { ...e, docs: [...a.docs, ...(e.docs ?? [])] } : e)),
+        timeline: [mkTimeline(a.eqId, "DOCUMENT", `${a.docs.length} dokumen diunggah`, `${a.docs.map((d) => d.name).join(", ")} · checksum tercatat.`, me.name), ...s.timeline],
+        audit: [mkAudit(me.name, s.role, "ASSET.UPLOAD", "asset_attachment", eq.code, `Dokumen: ${a.docs.map((d) => d.name).join(", ")}`, `${a.docs.length} file`), ...s.audit],
+        toasts: [...s.toasts, okToast(`${a.docs.length} dokumen tersimpan di ${eq.code}`)],
+      };
+    }
+
+    case "PRINT_LABEL": {
+      const eq = s.equipment.find((e) => e.id === a.eqId)!;
+      return {
+        ...s,
+        audit: [mkAudit(me.name, s.role, "ASSET.LABEL_PRINT", "asset", eq.code, "Cetak label aset + QR", eq.name), ...s.audit],
+        toasts: [...s.toasts, okToast(`Label ${eq.code} dikirim ke printer`)],
+      };
+    }
+
     case "WO_START": {
       const wo = s.workOrders.find((w) => w.id === a.id)!;
       const eq = s.equipment.find((e) => e.id === wo.eqId)!;
@@ -503,6 +538,9 @@ interface Api {
   setCmpStatus: (id: string, status: Complaint["status"]) => void;
   locSave: (kind: LocKind, id: string | undefined, data: Record<string, string>) => void;
   locDelete: (kind: LocKind, id: string) => void;
+  addPhotos: (eqId: string, photos: AssetPhoto[]) => void;
+  addDocs: (eqId: string, docs: AssetDoc[]) => void;
+  printLabel: (eqId: string) => void;
 }
 
 const Ctx = createContext<Api | null>(null);
@@ -532,6 +570,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setCmpStatus: (id, status) => dispatch({ t: "CMP_STATUS", id, status }),
     locSave: (kind, id, data) => dispatch({ t: "LOC_SAVE", kind, id, data }),
     locDelete: (kind, id) => dispatch({ t: "LOC_DELETE", kind, id }),
+    addPhotos: (eqId, photos) => dispatch({ t: "EQUIP_ADD_PHOTOS", eqId, photos }),
+    addDocs: (eqId, docs) => dispatch({ t: "EQUIP_ADD_DOCS", eqId, docs }),
+    printLabel: (eqId) => dispatch({ t: "PRINT_LABEL", eqId }),
   }), [s]);
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>;
 }

@@ -1,8 +1,8 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useApp } from "../lib/store";
-import { Card, Chip, Input, Select, StatusChip, Bar, SectionHead, Tabs, MonoTag, EmptyState, BtnSm } from "../components/ui";
-import { fmtDate, fmtIDRCompact, daysUntil } from "../lib/types";
-import { ArrowLeft, MapPin, QrCode, Truck, User, Wrench } from "lucide-react";
+import { Card, Chip, Input, Select, StatusChip, Bar, SectionHead, Tabs, MonoTag, EmptyState, BtnSm, BtnPrimary, BtnGhost, Modal, QRGlyph, Label } from "../components/ui";
+import { fmtDate, fmtIDRCompact, daysUntil, nextAssetCode, fmtSize, uid, AssetPhoto, AssetDoc } from "../lib/types";
+import { ArrowLeft, MapPin, QrCode, Truck, User, Wrench, Printer, Camera, FileText, Download, Copy, Hash, ImagePlus, FolderUp, Check } from "lucide-react";
 
 export default function Equipment() {
   const { s, nav } = useApp();
