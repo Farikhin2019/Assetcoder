@@ -5,13 +5,13 @@ import {
   mkPendingStages, MobileTask, Notif, NotifChannel, NotifKind, OpnameSession, PRLine, Priority, PurchaseOrder,
   Rental, Repair, Role, ROLE_USER, SLA_BY_PRIORITY, StageDecision, SyncEntry, SystemConfig, TimelineEvent, Toast,
   TransferRecord, TxType, UserAccount, Delivery, View, WorkOrder, FormTemplate, d, daysUntil, fmtIDR, lifeYears,
-  lineActiveStage, lineState, lineTotal, monthlyDep, periodKey, prStageLabels, prStageRole, prState, uid,
+  lineActiveStage, lineState, lineTotal, monthlyDep, periodKey, prStageLabels, prStageRole, prState, uid, VIEW_PERM,
 } from "./types";
 import {
   ACCESSORIES, APPROVALS, AUDIT, BUILDINGS, CALIBRATIONS, COMPLAINTS, CONFIG_DEFAULT, CONNECTORS, CONTRACTS,
   DEMAND_PLANS, DEPR_POSTED, DISPOSALS, EQUIPMENT, FORM_TEMPLATES, INSPECTIONS, ISSUES, ITEMS, LEDGER_INIT, LOANS,
-  MOBILE_TASKS, NOTIFS, OPNAMES, PURCHASE_ORDERS, PURCHASE_REQUESTS, RECEIPTS, RENTALS, REPAIRS, SPARE_PARTS,
-  SUPPLIERS, SYNC_LOG, TECHNICIANS, TIMELINE, TRANSFERS, USERS, DELIVERIES, UTIL_SERIES, WORK_ORDERS,
+  MOBILE_TASKS, NOTIFS, OPNAMES, PURCHASE_ORDERS, PURCHASE_REQUESTS, RECEIPTS, RENTALS, REPAIRS, ROLE_PERMS,
+  SPARE_PARTS, SUPPLIERS, SYNC_LOG, TECHNICIANS, TIMELINE, TRANSFERS, USERS, DELIVERIES, UTIL_SERIES, WORK_ORDERS,
 } from "./data";
 
 export interface AppState {
@@ -34,7 +34,7 @@ export interface AppState {
 }
 
 const INIT: AppState = {
-  view: "command", eqId: null, role: "Pengelola Aset", searchQuery: "",
+  view: "login", eqId: null, role: "Pengelola Aset", searchQuery: "",
   userId: "US-01", userName: "Rina Kusuma, S.T.", userUnit: null,
   users: USERS, deliveries: DELIVERIES,
   equipment: EQUIPMENT, timeline: TIMELINE, items: ITEMS, ledger: LEDGER_INIT,
@@ -125,6 +125,7 @@ type Act =
   | { t: "FORM_SAVE"; template: FormTemplate }
   | { t: "FORM_DELETE"; id: string }
   | { t: "LOGIN_USER"; id: string }
+  | { t: "LOGOUT" }
   | { t: "ADD_USER"; name: string; role: Role; unit: string | null; email: string }
   | { t: "DELIVER"; id: string }
   | { t: "UNIT_RECEIVE"; id: string };
@@ -135,6 +136,23 @@ const mkNotif = (kind: NotifKind, msg: string, refId: string): Notif => ({ id: "
 const mkTimeline = (eqId: string, type: TimelineEvent["type"], title: string, detail: string, actor: string, cost?: number, status?: string): TimelineEvent => ({ id: uid(), eqId, type, date: now(), title, detail, actor, cost, status });
 const mkLedger = (sku: string, type: TxType, qty: number, balance: number, actor: string, ref: string, reason?: string): LedgerEntry => ({ id: uid(), date: now(), sku, type, qty, balance, actor, ref, reason });
 const okToast = (msg: string, kind: Toast["kind"] = "ok"): Toast => ({ id: uid(), msg, kind });
+
+/* Halaman awal per role setelah login — sesuai hak aksesnya */
+const homeView = (r: Role): View =>
+  r === "Direksi" || r === "COO" ? "command"
+  : r === "Finance" ? "procurement"
+  : r === "IT Administrator" ? "config"
+  : r === "Kepala Unit" ? "procurement"
+  : r === "Teknisi" || r === "Kepala Teknisi" ? "technical"
+  : r === "Kepala Gudang" || r === "Petugas Gudang" || r === "Pengelola Inventory" ? "logistics"
+  : r === "Auditor" ? "audit"
+  : "equipment";
+
+export const canSeeView = (r: Role, v: View): boolean => {
+  const idx = VIEW_PERM[v];
+  if (idx === -1) return true;
+  return (ROLE_PERMS[r]?.[idx] ?? "none") !== "none";
+};
 
 /* Aset yang lahir dari pengadaan (GRN) — acquisition tertelusur ke PO/supplier (PRD §5) */
 const CAL_CATS = ["Imaging", "Life Support", "Laboratorium", "Monitoring", "Sterilisasi", "Infusion"];
@@ -161,8 +179,20 @@ const mkEquipmentFromPo = (seq: number, name: string, category: string, price: n
 function coreReducer(s: AppState, a: Act): AppState {
   const me = { name: s.userName, initials: s.userName.replace(/[,.]/g, "").split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join("") };
   switch (a.t) {
-    case "NAV": return { ...s, view: a.view, eqId: a.eqId ?? s.eqId, searchQuery: a.view === "equipment" ? s.searchQuery : "" };
-    case "ROLE": return { ...s, role: a.role, toasts: [...s.toasts, okToast(`Role aktif: ${a.role} — izin & data scope disesuaikan`, "info")] };
+    case "NAV": {
+      if (a.view !== "login" && !canSeeView(s.role, a.view)) {
+        return { ...s, toasts: [...s.toasts, okToast(`Role ${s.role} tidak punya akses ke modul itu`, "warn")] };
+      }
+      return { ...s, view: a.view, eqId: a.eqId ?? s.eqId, searchQuery: a.view === "equipment" ? s.searchQuery : "" };
+    }
+    case "ROLE": {
+      const rep = s.users.find((x) => x.role === a.role && x.active);
+      return {
+        ...s, role: a.role,
+        userId: rep?.id ?? s.userId, userName: rep?.name ?? ROLE_USER[a.role].name, userUnit: rep ? rep.unit : null,
+        toasts: [...s.toasts, okToast(`Role aktif: ${a.role} — izin & data scope disesuaikan`, "info")],
+      };
+    }
     case "SEARCH": return { ...s, searchQuery: a.q, view: a.q ? "equipment" : s.view };
     case "TOAST": return { ...s, toasts: [...s.toasts, okToast(a.msg, a.kind)] };
     case "TOAST_DROP": return { ...s, toasts: s.toasts.filter((t) => t.id !== a.id) };
@@ -1037,10 +1067,14 @@ function coreReducer(s: AppState, a: Act): AppState {
       return {
         ...s,
         userId: u.id, userName: u.name, role: u.role, userUnit: u.unit,
+        view: homeView(u.role), eqId: null,
         audit: [mkAudit(u.name, u.role, "SESSION.LOGIN", "user", u.id, undefined, `role ${u.role}${u.unit ? " · unit " + u.unit : ""}`), ...s.audit],
-        toasts: [...s.toasts, okToast(`Masuk sebagai ${u.name} — ${u.role}${u.unit ? " · " + u.unit : ""}`, "info")],
+        toasts: [...s.toasts, okToast(`Masuk sebagai ${u.name} — ${u.role}${u.unit ? " · " + u.unit : ""}. Menu disesuaikan hak akses.`, "info")],
       };
     }
+
+    case "LOGOUT":
+      return { ...s, view: "login", eqId: null, toasts: [...s.toasts, okToast("Sesi diakhiri — kembali ke layar masuk", "info")] };
 
     case "ADD_USER": {
       const u: UserAccount = { id: "US-" + uid(), name: a.name, role: a.role, unit: a.unit, email: a.email, active: true };
@@ -1170,6 +1204,7 @@ interface Api {
   saveForm: (template: FormTemplate) => void;
   deleteForm: (id: string) => void;
   loginUser: (id: string) => void;
+  logout: () => void;
   addUser: (name: string, role: Role, unit: string | null, email: string) => void;
   deliver: (id: string) => void;
   unitReceive: (id: string) => void;
@@ -1244,6 +1279,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     saveForm: (template) => dispatch({ t: "FORM_SAVE", template }),
     deleteForm: (id) => dispatch({ t: "FORM_DELETE", id }),
     loginUser: (id) => dispatch({ t: "LOGIN_USER", id }),
+    logout: () => dispatch({ t: "LOGOUT" }),
     addUser: (name, role, unit, email) => dispatch({ t: "ADD_USER", name, role, unit, email }),
     deliver: (id) => dispatch({ t: "DELIVER", id }),
     unitReceive: (id) => dispatch({ t: "UNIT_RECEIVE", id }),

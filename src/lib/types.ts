@@ -40,6 +40,18 @@ export type NotifKind =
 /* ── entities ── */
 
 export interface UserAccount { id: string; name: string; role: Role; unit: string | null; email: string; active: boolean; }
+
+/* View → index modul di PERM_MODULES (untuk filter menu per role). -1 = selalu terbuka. */
+export const VIEW_PERM: Record<View, number> = {
+  login: -1,
+  command: 0, dashboard: 0, notifications: 0, reporting: 8,
+  equipment: 1, "equipment-detail": 1, assetledger: 1, locations: 10, disposal: 10,
+  inventory: 2, logistics: 3, opname: 4,
+  technical: 5, formbuilder: 5, mobile: 5, complaints: 6,
+  procurement: 7,
+  utilization: 8, rental: 8, depreciation: 8, intelligence: 8, reliability: 8,
+  master: 11, approvals: 9, audit: 12, compliance: 12, rbac: 13, config: 13, eventbus: 13, integrations: 13,
+};
 export interface Delivery {
   id: string; code: string; date: string; prRef: string; poRef: string; unit: string;
   items: { kind: "ITEM" | "ASSET"; sku?: string; name: string; qty: number }[];
