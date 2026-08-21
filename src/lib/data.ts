@@ -45,6 +45,13 @@ const RAW_EQUIPMENT: EqSeed[] = [
   { id: "EQ-14", code: "AST-RS-2026-000014", name: "Dental Unit", category: "Poliklinik", brand: " Belmont", model: "Clesta II", serial: "BL-DU-50182", manufacturer: "Belmont Takara", prodYear: 2017, acqDate: d(-1200), acqCost: 245_000_000, supplierId: "S-03", warrantyUntil: d(-835), building: "Gedung B", floor: "Lantai 1", room: "Poli Gigi 1", unit: "Poliklinik Gigi", custodian: "drg. Fani Rahma", pic: "Fajar Nugroho", condition: "FAIR", opStatus: "IN_SERVICE", risk: "LOW", criticality: "LOW", calRequired: false, calStatus: "NOT_REQUIRED", calLast: null, calDue: null, maintStrategy: "CORRECTIVE", lastMaint: d(-200), nextMaint: d(60), lifecycle: 6, utilization: 31, mtbfHours: 460 },
   { id: "EQ-15", code: "AST-RS-2026-000015", name: "Infant Warmer (2014)", category: "Life Support", brand: "GE Healthcare", model: "Lullaby Warmer", serial: "GE-IW-10427", manufacturer: "GE Healthcare", prodYear: 2014, acqDate: d(-4300), acqCost: 85_000_000, supplierId: "S-01", warrantyUntil: d(-3900), building: "Gedung C", floor: "Lantai 2", room: "Gudang Aset Non-Aktif", unit: "Instalasi Perinatologi", custodian: "Rina Kusuma, S.T.", pic: "Agus Firmansyah", condition: "POOR", opStatus: "RETIRED", risk: "LOW", criticality: "LOW", calRequired: false, calStatus: "NOT_REQUIRED", calLast: null, calDue: null, maintStrategy: "CORRECTIVE", lastMaint: d(-900), nextMaint: d(9999), lifecycle: 7, utilization: 0, mtbfHours: 120 },
   { id: "EQ-16", code: "AST-RS-2026-000016", name: "EKG 3 Kanal (2013)", category: "Monitoring", brand: "Nihon Kohden", model: "ECG-2530", serial: "NK-EK-08113", manufacturer: "Nihon Kohden", prodYear: 2013, acqDate: d(-4700), acqCost: 42_000_000, supplierId: "S-03", warrantyUntil: d(-4300), building: "Gedung C", floor: "Lantai 2", room: "Gudang Aset Non-Aktif", unit: "Instalasi IGD", custodian: "Rina Kusuma, S.T.", pic: "Fajar Nugroho", condition: "POOR", opStatus: "DISPOSED", risk: "LOW", criticality: "LOW", calRequired: false, calStatus: "NOT_REQUIRED", calLast: null, calDue: null, maintStrategy: "CORRECTIVE", lastMaint: d(-1400), nextMaint: d(9999), lifecycle: 8, utilization: 0, mtbfHours: 90 },
+  /* ── Aset hasil pengadaan (alur demand → PR → PO → GRN → serah terima unit) ── */
+  { id: "EQ-17", code: "AST-RS-2026-000017", name: "Ventilator Transport Oxylog 3000", category: "Life Support", brand: "Dräger", model: "Oxylog 3000 Plus", serial: "DR-VT-51820", manufacturer: "Drägerwerk AG", prodYear: 2026, acqDate: d(-45), acqCost: 445_000_000, supplierId: "S-04", warrantyUntil: d(320), building: "Gedung D", floor: "Lantai 2", room: "ICU Bed 09", unit: "Instalasi ICU", custodian: "Ns. Dewi Lestari", pic: "Agus Firmansyah", condition: "EXCELLENT", opStatus: "IN_SERVICE", risk: "HIGH", criticality: "CRITICAL", calRequired: true, calStatus: "VALID", calLast: d(-20), calDue: d(345), maintStrategy: "PREVENTIVE", lastMaint: d(-10), nextMaint: d(80), lifecycle: 6, utilization: 64, mtbfHours: 1200, poRef: "PO-2607-086", invoiceNo: "INV-086-17",
+    docs: [doc("BAST-PO-2607-086.pdf", "430 KB", "application/pdf", -45), doc("Invoice-INV-086-17.pdf", "182 KB", "application/pdf", -45), doc("Sertifikat-KAL-VNT-2026-011.pdf", "610 KB", "application/pdf", -20)] },
+  { id: "EQ-18", code: "AST-RS-2026-000018", name: "Centrifuge Refrigerated EBA 380", category: "Laboratorium", brand: "Hettich", model: "EBA 380", serial: "HT-CF-30971", manufacturer: "Hettich GmbH", prodYear: 2026, acqDate: d(-60), acqCost: 185_000_000, supplierId: "S-05", warrantyUntil: d(305), building: "Gedung C", floor: "Lantai 3", room: "Lab Hematologi · Bench 3", unit: "Instalasi Laboratorium", custodian: "dr. Lina Kartika, Sp.PK", pic: "Rudi Hartawan", condition: "GOOD", opStatus: "IN_SERVICE", risk: "MEDIUM", criticality: "HIGH", calRequired: true, calStatus: "VALID", calLast: d(-40), calDue: d(325), maintStrategy: "PREVENTIVE", lastMaint: d(-25), nextMaint: d(65), lifecycle: 6, utilization: 72, mtbfHours: 900, poRef: "PO-2607-082", invoiceNo: "INV-082-18",
+    docs: [doc("BAST-PO-2607-082.pdf", "415 KB", "application/pdf", -60), doc("Invoice-INV-082-18.pdf", "176 KB", "application/pdf", -60)] },
+  { id: "EQ-19", code: "AST-RS-2026-000019", name: "USG Portable Versana Balance", category: "Imaging", brand: "GE Healthcare", model: "Versana Balance", serial: "GE-UP-22764", manufacturer: "GE Healthcare", prodYear: 2026, acqDate: d(-30), acqCost: 415_000_000, supplierId: "S-01", warrantyUntil: d(335), building: "Gedung B", floor: "Lantai 3", room: "Poli Kebidanan 2", unit: "Poliklinik Obsgyn", custodian: "dr. Maya Safitri, Sp.OG", pic: "Siti Nurhaliza", condition: "EXCELLENT", opStatus: "IN_SERVICE", risk: "MEDIUM", criticality: "HIGH", calRequired: true, calStatus: "DUE_SOON", calLast: d(-345), calDue: d(20), maintStrategy: "PREVENTIVE", lastMaint: d(-5), nextMaint: d(85), lifecycle: 6, utilization: 58, mtbfHours: 950, poRef: "PO-2607-094", invoiceNo: "INV-094-19",
+    docs: [doc("BAST-PO-2607-094.pdf", "422 KB", "application/pdf", -30), doc("Invoice-INV-094-19.pdf", "179 KB", "application/pdf", -30)] },
 ];
 export const EQUIPMENT: Equipment[] = RAW_EQUIPMENT.map(({ docs, ...e }) => ({ ...e, docs: docs ?? [] }));
 
@@ -175,6 +182,10 @@ export const WORK_ORDERS: WorkOrder[] = [
   { id: "WO-4", wo: "WO-2605", eqId: "EQ-10", type: "PREVENTIVE", techId: "T-03", scheduled: d(-25), status: "CLOSED", note: "Hydraulic & optic cleaning; carryover 0.31%.", laborCost: 1_200_000, templateId: "FT-INS-GEN" },
   { id: "WO-5", wo: "WO-2606", eqId: "EQ-12", type: "PREVENTIVE", techId: "T-05", scheduled: d(-18), status: "CLOSED", note: "Conductivity & UF check passed.", laborCost: 1_450_000, templateId: "FT-INS-ELEC" },
   { id: "WO-6", wo: "WO-2610", eqId: "EQ-09", type: "PREDICTIVE", techId: "T-02", scheduled: d(45), status: "SCHEDULED", note: "Tube output trending + AEC verification.", laborCost: 1_100_000, templateId: "FT-PM-IMG" },
+  /* ── Maintenance pasca serah terima aset hasil pengadaan ── */
+  { id: "WO-7", wo: "WO-2611", eqId: "EQ-18", type: "PREVENTIVE", techId: "T-03", scheduled: d(-25), status: "CLOSED", note: "PM awal pasca instalasi: rotor balance, refrigeration 4°C tercapai 3 mnt, safety lock OK.", laborCost: 650_000, templateId: "FT-INS-ELEC" },
+  { id: "WO-8", wo: "WO-2612", eqId: "EQ-19", type: "PREVENTIVE", techId: "T-02", scheduled: d(3), status: "SCHEDULED", note: "PM + persiapan re-kalibrasi (jatuh tempo 20 hari): probe integrity & grayscale QC.", laborCost: 900_000, templateId: "FT-PM-IMG" },
+  { id: "WO-9", wo: "WO-2613", eqId: "EQ-17", type: "PREVENTIVE", techId: "T-01", scheduled: d(6), status: "SCHEDULED", note: "PM kuartal 1: leak test, O2 cell, battery runtime test (transport ventilator).", laborCost: 780_000, templateId: "FT-PM-VNT" },
 ];
 
 export const CALIBRATIONS: CalibrationRecord[] = [
@@ -191,6 +202,9 @@ export const CALIBRATIONS: CalibrationRecord[] = [
   { id: "CAL-11", eqId: "EQ-11", date: d(-170), result: "PASS", cert: "KAL-INC-2025-288", techId: "T-01", nextDue: d(195), cost: 980_000 },
   { id: "CAL-12", eqId: "EQ-12", date: d(-352), result: "PASS", cert: "KAL-HD-2025-201", techId: "T-05", nextDue: d(13), cost: 1_100_000 },
   { id: "CAL-13", eqId: "EQ-13", date: d(-80), result: "PASS", cert: "KAL-SYP-2026-054", techId: "T-01", nextDue: d(285), cost: 540_000 },
+  { id: "CAL-14", eqId: "EQ-17", date: d(-20), result: "PASS", cert: "KAL-VNT-2026-011", techId: "T-01", nextDue: d(345), cost: 950_000 },
+  { id: "CAL-15", eqId: "EQ-18", date: d(-40), result: "PASS", cert: "KAL-LAB-2026-072", techId: "T-03", nextDue: d(325), cost: 720_000 },
+  { id: "CAL-16", eqId: "EQ-19", date: d(-345), result: "ADJUSTED", cert: "KAL-USG-2025-102", techId: "T-02", nextDue: d(20), cost: 1_100_000 },
 ];
 
 export const INSPECTIONS: Inspection[] = [
@@ -234,6 +248,12 @@ export const DEMAND_PLANS: DemandPlan[] = [
   { id: "DP-6", code: "DP-2609-006", kind: "ASET", item: "Ventilator Transport", category: "Life Support", brand: "Dräger", model: "Oxylog 3000 Plus", qty: 2, uom: "unit", estCost: 890_000_000, unit: "IGD", needBy: d(45), status: "REVIEWED", by: "dr. Bimo Prasetyo" },
   { id: "DP-7", code: "DP-2609-007", kind: "ASET", item: "USG Portable", category: "Imaging", brand: "GE Healthcare", model: "Versana Balance", qty: 1, uom: "unit", estCost: 415_000_000, unit: "Poliklinik", needBy: d(60), status: "SUBMITTED", by: "dr. Maya Safitri, Sp.OG" },
   { id: "DP-8", code: "DP-2609-008", kind: "ASET", item: "Patient Monitor", category: "Monitoring", brand: "Philips", model: "IntelliVue MX450", qty: 3, uom: "unit", estCost: 645_000_000, unit: "ICU", needBy: d(75), status: "SUBMITTED", by: "Ns. Dewi Lestari" },
+  { id: "DP-9", code: "DP-2609-009", kind: "BHP", item: "Dialyzer High-Flux FX80", qty: 300, uom: "pcs", estCost: 96_000_000, unit: "Hemodialisa", needBy: d(30), status: "REVIEWED", by: "Ns. Yuli Astuti" },
+  { id: "DP-10", code: "DP-2609-010", kind: "ASET", item: "Ultrasonic Cleaner — Elmasonic S300H", category: "Sterilisasi", brand: "Elma", model: "S300H", qty: 1, uom: "unit", estCost: 145_000_000, unit: "CSSD", needBy: d(40), status: "DRAFT", by: "Maya Anggraini" },
+  { id: "DP-11", code: "DP-2609-011", kind: "BHP", item: "PC Workstation Radiologi (PACS)", qty: 4, uom: "unit", estCost: 74_000_000, unit: "Radiologi", needBy: d(21), status: "SUBMITTED", by: "dr. Anton Wijaya, Sp.Rad" },
+  { id: "DP-12", code: "DP-2608-012", kind: "ASET", item: "Centrifuge Refrigerated — Hettich EBA 380", category: "Laboratorium", brand: "Hettich", model: "EBA 380", qty: 1, uom: "unit", estCost: 185_000_000, unit: "Laboratorium", needBy: d(-40), status: "CONSOLIDATED", by: "dr. Lina Kartika, Sp.PK" },
+  { id: "DP-13", code: "DP-2608-013", kind: "ASET", item: "Ventilator Transport — Dräger Oxylog 3000 Plus", category: "Life Support", brand: "Dräger", model: "Oxylog 3000 Plus", qty: 1, uom: "unit", estCost: 445_000_000, unit: "ICU", needBy: d(-30), status: "CONSOLIDATED", by: "Ns. Dewi Lestari" },
+  { id: "DP-14", code: "DP-2608-014", kind: "BHP", item: "Reagen Hematologi DCL", qty: 30, uom: "pack", estCost: 37_200_000, unit: "Laboratorium", needBy: d(-20), status: "CONSOLIDATED", by: "dr. Lina Kartika, Sp.PK" },
 ];
 
 const st = (status: PRStageStatus, approver = "", note = "", dd = 0): StageDecision =>
@@ -274,6 +294,19 @@ export const PURCHASE_REQUESTS: PurchaseRequest[] = [
       mkLine("ASSET", "", "Ventilator Transport — Dräger Oxylog 3000 Plus", 2, 445_000_000, [st("APPROVED", "Galih Saputra", "Spek sesuai formilarium alkes IGD", -1), st("PENDING"), st("PENDING")], 0, { category: "Life Support", brand: "Dräger", model: "Oxylog 3000 Plus" }),
     ],
   },
+  {
+    id: "PR-8", code: "PR-2608-017", date: d(-3, 9), requester: "dr. Lina Kartika, Sp.PK", unit: "Laboratorium", needBy: d(20), status: "APPROVED",
+    lines: [
+      mkLine("ITEM", "FAR-1287", "Reagen Hematologi DCL", 30, 1_240_000, [st("APPROVED", "Galih Saputra", "Reagen utama XN-1000", -3), st("APPROVED", "Ratna Dewi, S.E.", "Budget lab tersedia", -2), st("APPROVED", "dr. H. Ahmad Fauzi, MARS", "Setuju", -2)]),
+      mkLine("ITEM", "FAR-1340", "Citrate Tube 3.2% (CTAD)", 20, 385_000, [st("APPROVED", "Galih Saputra", "OK", -3), st("APPROVED", "Ratna Dewi, S.E.", "OK", -2), st("APPROVED", "dr. H. Ahmad Fauzi, MARS", "Setuju", -2)]),
+    ],
+  },
+  {
+    id: "PR-9", code: "PR-2608-018", date: d(-2, 11), requester: "Ns. Yuli Astuti", unit: "Hemodialisa", needBy: d(30), status: "REJECTED",
+    lines: [
+      mkLine("ITEM", "BHP-0038", "Infus Set Dewasa", 600, 11_500, [st("APPROVED", "Galih Saputra", "Kebutuhan HD rutin", -2), st("APPROVED", "Ratna Dewi, S.E.", "OK", -1), st("REJECTED", "dr. H. Ahmad Fauzi, MARS", "Stok gudang masih 620 set — turunkan qty jadi 200, sisanya pakai stok", -1)]),
+    ],
+  },
 ];
 
 export const PURCHASE_ORDERS: PurchaseOrder[] = [
@@ -281,6 +314,12 @@ export const PURCHASE_ORDERS: PurchaseOrder[] = [
   { id: "PO-1", code: "PO-2608-090", date: d(-7, 11), supplierId: "S-03", items: [{ kind: "ITEM", sku: "SP-PHL-MX-EXT", name: "SpO2 Extension Cable", qty: 10, price: 780_000 }], total: 7_800_000, eta: d(5), status: "SENT", prRef: "PR-2608-009" },
   { id: "PO-2", code: "PO-2607-088", date: d(-20, 9), supplierId: "S-03", items: [{ kind: "ITEM", sku: "FAR-1102", name: "NaCl 0.9% 500 ml", qty: 96, price: 14_800 }], total: 1_420_800, eta: d(-12), status: "RECEIVED", prRef: "PR-2607-071" },
   { id: "PO-3", code: "PO-2607-090", date: d(-22, 14), supplierId: "S-03", items: [{ kind: "ITEM", sku: "BHP-0089", name: "ECG Electrode Dewasa", qty: 500, price: 3_900 }], total: 1_950_000, eta: d(-14), status: "RECEIVED", prRef: "PR-2607-068" },
+  { id: "PO-5", code: "PO-2607-086", date: d(-50, 10), supplierId: "S-04", items: [{ kind: "ASSET", name: "Ventilator Transport — Dräger Oxylog 3000 Plus", category: "Life Support", brand: "Dräger", model: "Oxylog 3000 Plus", qty: 1, price: 445_000_000 }], total: 445_000_000, eta: d(-45), status: "RECEIVED", prRef: "PR-2608-013" },
+  { id: "PO-6", code: "PO-2607-082", date: d(-66, 9), supplierId: "S-05", items: [{ kind: "ASSET", name: "Centrifuge Refrigerated — Hettich EBA 380", category: "Laboratorium", brand: "Hettich", model: "EBA 380", qty: 1, price: 185_000_000 }], total: 185_000_000, eta: d(-60), status: "RECEIVED", prRef: "PR-2608-012" },
+  { id: "PO-7", code: "PO-2607-094", date: d(-38, 11), supplierId: "S-01", items: [{ kind: "ASSET", name: "USG Portable — GE Versana Balance", category: "Imaging", brand: "GE Healthcare", model: "Versana Balance", qty: 1, price: 415_000_000 }], total: 415_000_000, eta: d(-30), status: "RECEIVED", prRef: "PR-2607-080" },
+  { id: "PO-8", code: "PO-2608-092", date: d(-6, 10), supplierId: "S-03", items: [{ kind: "ITEM", sku: "BHP-0012", name: "Handscoon Nitrile M", qty: 300, price: 68_000 }, { kind: "ITEM", sku: "BHP-0031", name: "Spuit 3 cc Terumo", qty: 500, price: 2_350 }], total: 21_575_000, eta: d(-2), status: "RECEIVED", prRef: "PR-2608-012" },
+  { id: "PO-9", code: "PO-2607-085", date: d(-16, 9), supplierId: "S-05", items: [{ kind: "ITEM", sku: "FAR-1287", name: "Reagen Hematologi DCL", qty: 20, price: 1_240_000 }, { kind: "ITEM", sku: "FAR-1340", name: "Citrate Tube 3.2% (CTAD)", qty: 10, price: 385_000 }], total: 28_650_000, eta: d(-8), status: "RECEIVED", prRef: "PR-2607-070" },
+  { id: "PO-10", code: "PO-2608-095", date: d(-1, 13), supplierId: "S-03", items: [{ kind: "ITEM", sku: "BHP-0038", name: "Infus Set Dewasa", qty: 200, price: 11_500 }, { kind: "ITEM", sku: "FAR-1301", name: "Suction Catheter CH14", qty: 150, price: 6_200 }], total: 3_230_000, eta: d(4), status: "SENT", prRef: "PR-2607-069" },
 ];
 
 /* ── Phase 1: logistics & master ── */
@@ -609,12 +648,17 @@ export const USERS: UserAccount[] = [
 
 export const DELIVERIES: Delivery[] = [
   {
+    id: "DL-0", code: "DIST-2608-027", date: d(-8, 9), prRef: "PR-2607-070", poRef: "PO-2607-085", unit: "Laboratorium",
+    items: [{ kind: "ITEM", sku: "FAR-1287", name: "Reagen Hematologi DCL", qty: 20 }, { kind: "ITEM", sku: "FAR-1340", name: "Citrate Tube 3.2% (CTAD)", qty: 10 }],
+    status: "RECEIVED", courier: "Sari Melati", deliveredAt: d(-7, 10), receivedBy: "dr. Lina Kartika, Sp.PK", receivedAt: d(-7, 13),
+  },
+  {
     id: "DL-1", code: "DIST-2608-029", date: d(-1, 10), prRef: "PR-2608-011", poRef: "PO-2607-088", unit: "IGD",
     items: [{ kind: "ITEM", sku: "FAR-1102", name: "NaCl 0.9% 500 ml", qty: 400 }],
     status: "DELIVERED", courier: "Sari Melati", deliveredAt: d(0, 8),
   },
   {
-    id: "DL-2", code: "DIST-2608-030", date: d(0, 9), prRef: "PR-2608-012", poRef: "PO-2608-091", unit: "ICU",
+    id: "DL-2", code: "DIST-2608-030", date: d(0, 9), prRef: "PR-2608-012", poRef: "PO-2608-092", unit: "ICU",
     items: [{ kind: "ITEM", sku: "BHP-0012", name: "Handscoon Nitrile M", qty: 300 }, { kind: "ITEM", sku: "BHP-0031", name: "Spuit 3 cc Terumo", qty: 500 }],
     status: "PENDING",
   },
