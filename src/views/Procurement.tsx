@@ -1,13 +1,29 @@
 import { useMemo, useState } from "react";
 import { activeStage, canDecideStage, lineState, prTotal, useApp } from "../lib/store";
 import { BtnGhost, BtnPrimary, BtnSm, Card, Chip, EmptyState, Input, Label, Modal, Select, StatusChip, Tabs, TextArea } from "../components/ui";
-import { fmtDate, fmtIDR, fmtIDRCompact } from "../lib/types";
-import { Check, Pencil, Send, Truck, X } from "lucide-react";
+import { fmtDate, fmtIDR, fmtIDRCompact, Role } from "../lib/types";
+import { ArrowRight, Check, ClipboardCheck, FilePlus2, PackageCheck, Pencil, Send, Truck, UserCheck, Wallet, X } from "lucide-react";
 
 const STAGE_LABELS = ["IT / Umum", "Keuangan", "COO"];
 
+/* ── tanggung jawab per peran (sesuai alur PRD) ── */
+const canCreatePr = (r: Role) => ["Kepala Unit", "Direksi", "Pengelola Inventory"].includes(r);
+const canPo = (r: Role) => ["Umum", "Pengelola Inventory", "Kepala Gudang"].includes(r);
+const canGrn = (r: Role) => ["Kepala Gudang", "Petugas Gudang", "Umum"].includes(r);
+const canDeliver = (r: Role) => ["Kepala Gudang", "Petugas Gudang", "Umum", "Pengelola Inventory"].includes(r);
+const canUnitReceive = (r: Role) => ["Kepala Unit", "Pengelola Aset", "Pengelola Inventory"].includes(r);
+
+const FLOW = [
+  { label: "Ajukan PR", who: "Unit peminta", icon: <FilePlus2 size={13} /> },
+  { label: "Persetujuan 3 tahap", who: "IT/Umum → Keuangan → COO", icon: <ClipboardCheck size={13} /> },
+  { label: "Buat PO", who: "Umum / Inventory", icon: <Send size={13} /> },
+  { label: "Terima GRN", who: "Gudang", icon: <PackageCheck size={13} /> },
+  { label: "Kirim ke unit", who: "Gudang", icon: <Truck size={13} /> },
+  { label: "Unit terima", who: "Kepala Unit", icon: <UserCheck size={13} /> },
+];
+
 export default function Procurement() {
-  const { s, prDecide, prDecideAll, prRevise, createPo, receivePo, deliver, unitReceive } = useApp();
+  const { s, createPr, prDecide, prDecideAll, prRevise, createPo, receivePo, deliver, unitReceive } = useApp();
   const [tab, setTab] = useState("pr");
   const [decision, setDecision] = useState<{ prId: string; lineId: string; ok: boolean } | null>(null);
   const [note, setNote] = useState("");
@@ -16,6 +32,7 @@ export default function Procurement() {
   const [reviseQty, setReviseQty] = useState("");
   const [poFor, setPoFor] = useState<string | null>(null);
   const [supplier, setSupplier] = useState("S-03");
+  const [newPr, setNewPr] = useState(false);
 
   const decLine = decision ? s.purchaseRequests.find((p) => p.id === decision.prId)?.lines.find((l) => l.id === decision.lineId) : null;
   const stageIdx = decLine ? activeStage(decLine) : -1;
@@ -35,16 +52,54 @@ export default function Procurement() {
   };
 
   const isApprover = useMemo(() => [0, 1, 2].some((i) => canDecideStage(s.role, i)), [s.role]);
+  const myStage = [0, 1, 2].find((i) => canDecideStage(s.role, i));
+
+  /* ringkasan tanggung jawab role aktif */
+  const roleCaps = useMemo(() => {
+    const caps: string[] = [];
+    if (canCreatePr(s.role)) caps.push("Ajukan PR");
+    if (myStage !== undefined) caps.push(`Setujui tahap ${STAGE_LABELS[myStage]}`);
+    if (canPo(s.role)) caps.push("Buat PO");
+    if (canGrn(s.role)) caps.push("Terima GRN");
+    if (canDeliver(s.role)) caps.push("Kirim ke unit");
+    if (canUnitReceive(s.role)) caps.push("Konfirmasi terima");
+    return caps;
+  }, [s.role, myStage]);
 
   return (
     <div className="view-in space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="font-display text-[22px] font-black tracking-tight text-ink">Procurement</h1>
-          <p className="text-xs text-mute">Purchase Request → Persetujuan 3 tahap (IT/Umum → Keuangan → COO) → PO → GRN → Distribusi ke unit peminta</p>
+          <p className="text-xs text-mute">Purchase Request → Persetujuan 3 tahap → PO → GRN → Distribusi → unit terima</p>
         </div>
-        <Chip tone={isApprover ? "ok" : "neutral"} dot>{isApprover ? `Anda approver tahap ${STAGE_LABELS[[0, 1, 2].find((i) => canDecideStage(s.role, i))!]}` : `Role ${s.role} — bukan approver`}</Chip>
+        <div className="flex flex-col items-end gap-1">
+          <Chip tone={roleCaps.length > 0 ? "ok" : "neutral"} dot>
+            {roleCaps.length > 0 ? `Peran Anda: ${roleCaps.join(" · ")}` : `Role ${s.role} — tidak ada aksi di alur ini`}
+          </Chip>
+          {isApprover && myStage !== undefined && (
+            <span className="font-mono text-[10px] text-mute">Anda approver tahap <b className="text-pine-700">{myStage + 1} ({STAGE_LABELS[myStage]})</b></span>
+          )}
+        </div>
       </div>
+
+      {/* ── alur 6 tahap ── */}
+      <Card className="p-3.5">
+        <div className="flex flex-wrap items-center gap-y-2">
+          {FLOW.map((f, i) => (
+            <div key={f.label} className="flex items-center">
+              <div className="flex items-center gap-2 rounded-md border border-line bg-canvas/60 px-2.5 py-1.5">
+                <span className="text-pine-600">{f.icon}</span>
+                <span>
+                  <span className="block font-mono text-[10px] font-bold uppercase tracking-wide text-ink2">{i + 1}. {f.label}</span>
+                  <span className="block font-mono text-[8.5px] text-mute">{f.who}</span>
+                </span>
+              </div>
+              {i < FLOW.length - 1 && <ArrowRight size={13} className="mx-1.5 shrink-0 text-line2" />}
+            </div>
+          ))}
+        </div>
+      </Card>
 
       <Card className="p-4">
         <Tabs active={tab} onChange={setTab}
@@ -53,6 +108,12 @@ export default function Procurement() {
         <div className="pt-4">
           {tab === "pr" && (
             <div className="space-y-4">
+              <div className="flex justify-end">
+                <BtnPrimary disabled={!canCreatePr(s.role)} title={!canCreatePr(s.role) ? "Hanya Kepala Unit / Pengelola Inventory / Direksi" : undefined} onClick={() => setNewPr(true)}>
+                  <FilePlus2 size={14} /> Ajukan Purchase Request
+                </BtnPrimary>
+              </div>
+
               {s.purchaseRequests.map((pr) => (
                 <div key={pr.id} className="rounded-lg border border-line bg-paper p-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
@@ -60,13 +121,18 @@ export default function Procurement() {
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="font-mono text-[13.5px] font-bold text-ink">{pr.code}</p>
                         <StatusChip status={pr.status} />
-                        <Chip tone="neutral">{pr.unit}</Chip>
+                        <Chip tone="neutral">unit: {pr.unit}</Chip>
                       </div>
                       <p className="mt-0.5 font-mono text-[10px] text-mute">peminta: {pr.requester} · {fmtDate(pr.date)} · need by {fmtDate(pr.needBy)} · total <b className="text-ink">{fmtIDRCompact(prTotal(pr))}</b></p>
                     </div>
-                    {pr.status === "APPROVED" && (
-                      <BtnSm onClick={() => { setPoFor(pr.id); setSupplier("S-03"); }} className="!border-pine-500/60 !text-pine-700"><Send size={12} /> Buat PO</BtnSm>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {pr.status === "APPROVED" && (
+                        <BtnSm disabled={!canPo(s.role)} title={!canPo(s.role) ? "Hanya Umum / Inventory / Kepala Gudang" : undefined} onClick={() => { setPoFor(pr.id); setSupplier("S-03"); }} className="!border-pine-500/60 !text-pine-700"><Send size={12} /> Buat PO</BtnSm>
+                      )}
+                      {isApprover && myStage !== undefined && pr.lines.some((l) => activeStage(l) === myStage && lineState(l) === "IN_APPROVAL") && (
+                        <BtnSm onClick={() => { prDecideAll(pr.id, true, "disetujui (batch)"); }} className="!border-ok/50 !text-ok" title="Setujui semua baris pada tahap Anda"><Check size={12} /> Setujui semua (tahap Anda)</BtnSm>
+                      )}
+                    </div>
                   </div>
 
                   <div className="mt-3 space-y-2.5">
@@ -74,27 +140,31 @@ export default function Procurement() {
                       const ls = lineState(l);
                       const idx = activeStage(l);
                       const canAct = idx >= 0 && canDecideStage(s.role, idx) && pr.status !== "PO_CREATED";
+                      const myTurn = idx >= 0 && idx === myStage;
                       return (
-                        <div key={l.id} className="rounded-md border border-line bg-card p-3">
+                        <div key={l.id} className={`rounded-md border p-3 ${myTurn ? "border-pine-500/60 bg-pine-50/50" : "border-line bg-card"}`}>
                           <div className="flex flex-wrap items-start justify-between gap-2">
                             <div className="min-w-0">
                               <div className="flex flex-wrap items-center gap-1.5">
                                 <Chip tone={l.kind === "ASSET" ? "pine" : "neutral"} className="!text-[9px]">{l.kind}</Chip>
                                 <p className="text-[12.5px] font-bold text-ink">{l.name}</p>
                                 {l.sku && <span className="font-mono text-[9.5px] text-mute">{l.sku}</span>}
+                                {myTurn && <Chip tone="warn" dot>giliran Anda</Chip>}
                               </div>
                               <p className="mt-0.5 font-mono text-[10px] text-mute">{l.qty} × {fmtIDR(l.unitCost)} = <b className="text-ink">{fmtIDRCompact(l.qty * l.unitCost)}</b></p>
                             </div>
                             <div className="flex items-center gap-1.5">
-                              {ls === "REJECTED" && (
+                              {ls === "REJECTED" && canCreatePr(s.role) && (
                                 <BtnSm onClick={() => { setRevise({ prId: pr.id, lineId: l.id }); setReviseQty(String(l.qty)); setErr(""); }} className="!border-warn/60 !text-warn"><Pencil size={11} /> Revisi</BtnSm>
                               )}
-                              {canAct && (
+                              {canAct ? (
                                 <>
                                   <BtnSm onClick={() => { setDecision({ prId: pr.id, lineId: l.id, ok: true }); setNote(""); setErr(""); }} className="!border-ok/60 !text-ok"><Check size={11} /> Setujui</BtnSm>
                                   <BtnSm onClick={() => { setDecision({ prId: pr.id, lineId: l.id, ok: false }); setNote(""); setErr(""); }} className="!border-danger/60 !text-danger"><X size={11} /> Tolak</BtnSm>
                                 </>
-                              )}
+                              ) : idx >= 0 && !myTurn ? (
+                                <span className="font-mono text-[9px] text-mute">menunggu {STAGE_LABELS[idx]}</span>
+                              ) : null}
                             </div>
                           </div>
                           {/* tracker 3 tahap */}
@@ -122,6 +192,7 @@ export default function Procurement() {
 
           {tab === "po" && (
             <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+              {s.purchaseOrders.length === 0 && <EmptyState title="Belum ada PO" sub="Setujui PR lalu buat PO." />}
               {s.purchaseOrders.map((p) => {
                 const sup = s.suppliers.find((x) => x.id === p.supplierId);
                 return (
@@ -147,7 +218,7 @@ export default function Procurement() {
                     <div className="mt-2.5 flex items-center justify-between border-t border-line pt-2.5">
                       <span className="num font-mono text-[12px] font-bold text-ink">{fmtIDR(p.total)}</span>
                       {p.status === "SENT" ? (
-                        <BtnSm onClick={() => receivePo(p.id)} className="!border-ok/50 !text-ok"><Truck size={12} /> {p.items.some((it) => it.kind === "ASSET") ? "Terima & Daftarkan Aset" : "Terima (GRN)"}</BtnSm>
+                        <BtnSm disabled={!canGrn(s.role)} title={!canGrn(s.role) ? "Hanya Gudang / Umum" : undefined} onClick={() => receivePo(p.id)} className="!border-ok/50 !text-ok"><Truck size={12} /> {p.items.some((it) => it.kind === "ASSET") ? "Terima & Daftarkan Aset" : "Terima (GRN)"}</BtnSm>
                       ) : <span className="font-mono text-[10px] font-bold text-ok">diterima ✓</span>}
                     </div>
                   </div>
@@ -193,12 +264,16 @@ export default function Procurement() {
                       <span className="font-mono text-[10px] text-mute">
                         {dl.status === "DELIVERED" && dl.courier ? <>kurir: <b>{dl.courier}</b></> : dl.status === "RECEIVED" && dl.receivedBy ? <>diterima: <b>{dl.receivedBy}</b></> : "menunggu dikirim gudang"}
                       </span>
-                      {dl.status === "PENDING" && <BtnSm onClick={() => deliver(dl.id)} className="!border-info/50 !text-info"><Truck size={12} /> Kirim ke Unit</BtnSm>}
-                      {dl.status === "DELIVERED" && (isMine || s.role === "Pengelola Aset" || s.role === "Pengelola Inventory") ? (
-                        <BtnSm onClick={() => unitReceive(dl.id)} className="!border-ok/60 !text-ok"><Check size={12} /> Konfirmasi Terima</BtnSm>
-                      ) : dl.status === "DELIVERED" ? (
-                        <span className="font-mono text-[9.5px] text-mute">masuk sebagai user unit <b className="text-pine-700">{dl.unit}</b> untuk konfirmasi</span>
-                      ) : null}
+                      {dl.status === "PENDING" && (
+                        <BtnSm disabled={!canDeliver(s.role)} title={!canDeliver(s.role) ? "Hanya Gudang / Umum / Inventory" : undefined} onClick={() => deliver(dl.id)} className="!border-info/50 !text-info"><Truck size={12} /> Kirim ke Unit</BtnSm>
+                      )}
+                      {dl.status === "DELIVERED" && (
+                        (isMine && s.role === "Kepala Unit") || canUnitReceive(s.role) ? (
+                          <BtnSm onClick={() => unitReceive(dl.id)} className="!border-ok/60 !text-ok"><Check size={12} /> Konfirmasi Terima</BtnSm>
+                        ) : (
+                          <span className="font-mono text-[9.5px] text-mute">masuk sebagai Kepala Unit <b className="text-pine-700">{dl.unit}</b> untuk konfirmasi</span>
+                        )
+                      )}
                       {dl.status === "RECEIVED" && <span className="font-mono text-[10px] font-bold text-ok">alur selesai ✓</span>}
                     </div>
                   </div>
@@ -247,7 +322,106 @@ export default function Procurement() {
         </div>
       </Modal>
 
+      {/* modal ajukan PR */}
+      <NewPrModal open={newPr} onClose={() => setNewPr(false)} onSubmit={(lines, needBy) => { createPr(lines, needBy); setNewPr(false); }} />
+
       <p className="font-mono text-[10.5px] text-mute">Persetujuan per-barang tercatat di audit trail · GRN BHP posting ledger (BR-003) · GRN aset daftarkan equipment tertelusur ke PO (BR-001/002).</p>
     </div>
+  );
+}
+
+/* ── form ajukan PR (unit peminta) ── */
+function NewPrModal({ open, onClose, onSubmit }: { open: boolean; onClose: () => void; onSubmit: (lines: { kind: "ITEM" | "ASSET"; sku?: string; name: string; category?: string; qty: number; unitCost: number }[], needBy: string) => void }) {
+  const { s } = useApp();
+  const [kind, setKind] = useState<"ITEM" | "ASSET">("ITEM");
+  const [sku, setSku] = useState(s.items[0]?.sku ?? "");
+  const [assetName, setAssetName] = useState("");
+  const [assetCat, setAssetCat] = useState("Monitoring");
+  const [qty, setQty] = useState("1");
+  const [cost, setCost] = useState("");
+  const [needBy, setNeedBy] = useState(() => new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10));
+  const [lines, setLines] = useState<{ kind: "ITEM" | "ASSET"; sku?: string; name: string; category?: string; qty: number; unitCost: number }[]>([]);
+  const [err, setErr] = useState("");
+
+  const selItem = s.items.find((i) => i.sku === sku);
+  const unitCost = kind === "ITEM" ? (selItem?.unitCost ?? 0) : Number(cost) || 0;
+  const name = kind === "ITEM" ? (selItem?.name ?? "") : assetName.trim();
+
+  const addLine = () => {
+    if (kind === "ASSET" && !name) return setErr("Nama aset wajib diisi.");
+    if (!(Number(qty) > 0)) return setErr("Qty wajib > 0.");
+    if (unitCost <= 0) return setErr(kind === "ASSET" ? "Estimasi biaya wajib > 0." : "Item tidak ditemukan.");
+    setLines([...lines, { kind, sku: kind === "ITEM" ? sku : undefined, name, category: kind === "ASSET" ? assetCat : undefined, qty: Number(qty), unitCost }]);
+    setErr(""); setQty("1"); setAssetName(""); setCost("");
+  };
+
+  const submit = () => {
+    if (lines.length === 0) return setErr("Tambahkan minimal satu baris permintaan.");
+    onSubmit(lines, needBy);
+    setLines([]); setErr("");
+  };
+
+  const total = lines.reduce((a, l) => a + l.qty * l.unitCost, 0);
+
+  return (
+    <Modal open={open} onClose={onClose} wide kicker={`Ajukan PR · unit ${s.userUnit ?? "—"}`} title="Purchase Request baru"
+      footer={<><BtnGhost onClick={onClose}>Batal</BtnGhost><BtnPrimary onClick={submit} disabled={lines.length === 0}><Wallet size={13} /> Ajukan ({fmtIDRCompact(total)})</BtnPrimary></>}>
+      <div className="space-y-3.5">
+        <div>
+          <Label>Jenis permintaan</Label>
+          <div className="grid grid-cols-2 gap-2">
+            {(["ITEM", "ASSET"] as const).map((k) => (
+              <button key={k} onClick={() => { setKind(k); setErr(""); }}
+                className={`rounded-md border px-3 py-2 font-mono text-[11.5px] font-bold transition ${kind === k ? (k === "ASSET" ? "border-pine-600 bg-pine-50 text-pine-700" : "border-pine-600 bg-pine-50 text-pine-700") : "border-line bg-card text-mute hover:border-line2"}`}>
+                {k === "ITEM" ? "Barang habis pakai (BHP)" : "Aset / alat (CAPEX)"}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {kind === "ITEM" ? (
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label>Item (dari inventory)</Label>
+              <Select value={sku} onChange={(e) => setSku(e.target.value)}>
+                {s.items.map((i) => <option key={i.sku} value={i.sku}>{i.name} — {i.sku}</option>)}
+              </Select>
+            </div>
+            <div><Label>Harga satuan</Label><Input value={fmtIDR(selItem?.unitCost ?? 0)} readOnly className="bg-canvas/60" /></div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-3 gap-3">
+            <div className="col-span-2"><Label>Nama aset *</Label><Input value={assetName} onChange={(e) => setAssetName(e.target.value)} placeholder="cth: Patient Monitor MX550" /></div>
+            <div><Label>Kategori</Label><Select value={assetCat} onChange={(e) => setAssetCat(e.target.value)}>{["Imaging", "Life Support", "Monitoring", "Laboratorium", "Sterilisasi", "Infusion"].map((c) => <option key={c}>{c}</option>)}</Select></div>
+            <div className="col-span-3"><Label>Estimasi biaya satuan (IDR) *</Label><Input type="number" value={cost} onChange={(e) => setCost(e.target.value)} placeholder="250000000" /></div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 gap-3">
+          <div><Label>Qty *</Label><Input type="number" value={qty} onChange={(e) => setQty(e.target.value)} /></div>
+          <div className="flex items-end"><BtnSm onClick={addLine} className="w-full !py-2">+ Tambah baris</BtnSm></div>
+        </div>
+
+        {lines.length > 0 && (
+          <div className="space-y-1.5">
+            <Label>Baris permintaan</Label>
+            {lines.map((l, i) => (
+              <div key={i} className="flex items-center justify-between gap-2 rounded-md border border-line bg-canvas/50 px-2.5 py-1.5">
+                <span className="flex min-w-0 items-center gap-1.5 text-[12px] font-semibold text-ink">
+                  <Chip tone={l.kind === "ASSET" ? "pine" : "neutral"} className="!text-[8px]">{l.kind}</Chip>
+                  <span className="truncate">{l.name}</span><span className="font-mono text-[10px] text-mute">×{l.qty}</span>
+                </span>
+                <span className="flex shrink-0 items-center gap-2">
+                  <span className="num font-mono text-[10.5px] text-ink2">{fmtIDRCompact(l.qty * l.unitCost)}</span>
+                  <button onClick={() => setLines(lines.filter((_, j) => j !== i))} className="text-danger hover:underline"><X size={12} /></button>
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div><Label>Butuh sebelum</Label><Input type="date" value={needBy} onChange={(e) => setNeedBy(e.target.value)} /></div>
+        {err && <p className="rounded-md bg-dangerbg px-3 py-2 text-xs font-semibold text-danger">{err}</p>}
+      </div>
+    </Modal>
   );
 }

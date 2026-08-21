@@ -449,6 +449,7 @@ interface Api {
   toast: (msg: string, kind?: Toast["kind"]) => void; dropToast: (id: string) => void;
   markNotifsRead: () => void;
   adjust: (sku: string, delta: number, reason: string) => void;
+  createPr: (lines: { kind: "ITEM" | "ASSET"; sku?: string; name: string; category?: string; qty: number; unitCost: number }[], needBy: string) => void;
   prDecide: (prId: string, lineId: string, ok: boolean, note: string) => void;
   prDecideAll: (prId: string, ok: boolean, note: string) => void;
   prRevise: (prId: string, lineId: string, qty: number) => void;
@@ -475,6 +476,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     dropToast: (id) => dispatch({ t: "TOAST_DROP", id }),
     markNotifsRead: () => dispatch({ t: "NOTIFS_READ" }),
     adjust: (sku, delta, reason) => dispatch({ t: "ADJUST", sku, delta, reason }),
+    createPr: (lines, needBy) => dispatch({ t: "PR_CREATE", lines, needBy }),
     prDecide: (prId, lineId, ok, note) => dispatch({ t: "PR_DECIDE", prId, lineId, ok, note }),
     prDecideAll: (prId, ok, note) => dispatch({ t: "PR_DECIDE_ALL", prId, ok, note }),
     prRevise: (prId, lineId, qty) => dispatch({ t: "PR_REVISE", prId, lineId, qty }),
