@@ -1,8 +1,8 @@
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { useApp } from "../lib/store";
-import { Card, Chip, Input, Select, StatusChip, Bar, SectionHead, Tabs, MonoTag, EmptyState, BtnSm, BtnPrimary, BtnGhost, Modal, QRGlyph, Label } from "../components/ui";
-import { fmtDate, fmtIDRCompact, daysUntil, nextAssetCode, fmtSize, uid, AssetPhoto, AssetDoc } from "../lib/types";
-import { ArrowLeft, MapPin, QrCode, Truck, User, Wrench, Printer, Camera, FileText, Download, Copy, Hash, ImagePlus, FolderUp, Check } from "lucide-react";
+import { Card, Chip, Input, Select, StatusChip, Bar, Tabs, MonoTag, EmptyState, BtnPrimary, BtnGhost, Modal, QRGlyph } from "../components/ui";
+import { fmtDate, fmtIDRCompact, daysUntil, nextAssetCode, fmtSize } from "../lib/types";
+import { ArrowLeft, MapPin, QrCode, Truck, User, Wrench, Printer, Camera, FileText, Download, Copy, Hash } from "lucide-react";
 
 export default function Equipment() {
   const { s, nav } = useApp();
@@ -34,6 +34,20 @@ function EquipmentList() {
           <Chip tone="danger" dot>{s.equipment.filter((e) => e.calStatus === "EXPIRED").length} CAL EXPIRED</Chip>
         </div>
       </div>
+
+      <Card className="border-pine-500/25 bg-pine-50/50 p-3.5">
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+          <span className="flex items-center gap-2 font-display text-[13px] font-extrabold tracking-tight text-ink">
+            <span className="flex h-7 w-7 items-center justify-center rounded-md bg-pine-700 text-pine-50"><Hash size={14} /></span>
+            Penomoran Aset
+          </span>
+          <span className="font-mono text-[10px] text-mute">format <b className="text-ink2">AST-RS-{new Date().getFullYear()}-######</b> · unik (BR-001) · imutabel (BR-002)</span>
+          <span className="ml-auto flex items-center gap-2">
+            <MonoTag>terdaftar {String(s.equipment.length).padStart(6, "0")}</MonoTag>
+            <Chip tone="pine" dot>berikutnya {nextAssetCode(s.equipment.map((e) => e.code))}</Chip>
+          </span>
+        </div>
+      </Card>
 
       <Card className="p-3.5">
         <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
@@ -83,7 +97,7 @@ function EquipmentList() {
 }
 
 function EquipmentDetail() {
-  const { s, nav, addPhotos, addDocs, printLabel } = useApp();
+  const { s, nav, addPhotos, addDocs, printLabel, toast } = useApp();
   const eq = s.equipment.find((e) => e.id === s.eqId);
   const [tab, setTab] = useState("timeline");
   const [labelOpen, setLabelOpen] = useState(false);
@@ -98,7 +112,6 @@ function EquipmentDetail() {
   const photos = eq.photos ?? [];
   const docs = eq.docs ?? [];
 
-  const fmtSize = (b: number) => b > 1e6 ? (b / 1e6).toFixed(1) + " MB" : Math.max(1, Math.round(b / 1e3)) + " KB";
   const onPhotoPick = (files: FileList | null) => {
     if (!files || files.length === 0) return;
     const list = Array.from(files).slice(0, 6).map((f) => ({
@@ -242,8 +255,102 @@ function EquipmentDetail() {
               ))}
             </div>
           )}
+          {tab === "lamp" && (
+            <div className="space-y-5">
+              {/* ── galeri foto ── */}
+              <div>
+                <div className="mb-2.5 flex items-center justify-between">
+                  <p className="font-display text-[13.5px] font-extrabold tracking-tight text-ink">Foto aset <span className="font-mono text-[10.5px] font-semibold text-mute">({photos.length})</span></p>
+                  <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-line bg-card px-2.5 py-1.5 font-display text-[11px] font-bold text-ink2 transition hover:border-pine-500/50 hover:bg-pine-50 hover:text-pine-700">
+                    <Camera size={12} /> Tambah foto
+                    <input type="file" accept="image/*" multiple className="hidden" onChange={(e) => { onPhotoPick(e.target.files); e.target.value = ""; }} />
+                  </label>
+                </div>
+                {photos.length === 0 ? (
+                  <EmptyState title="Belum ada foto" sub="Unggah dokumentasi visual — kondisi fisik, nameplate, instalasi." />
+                ) : (
+                  <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
+                    {photos.map((p, i) => (
+                      <figure key={p.id} className="row-in group overflow-hidden rounded-lg border border-line bg-paper transition hover:-translate-y-0.5 hover:border-pine-500/50 hover:shadow-lg" style={{ animationDelay: `${i * 45}ms` }}>
+                        <div className="aspect-[4/3] w-full overflow-hidden bg-moss">
+                          <img src={p.dataUrl} alt={p.name} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
+                        </div>
+                        <figcaption className="px-2.5 py-2">
+                          <p className="truncate text-[11px] font-bold text-ink">{p.name}</p>
+                          <p className="font-mono text-[9px] text-mute">{p.size} · {p.by} · {fmtDate(p.date)}</p>
+                        </figcaption>
+                      </figure>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {/* ── dokumen ── */}
+              <div>
+                <div className="mb-2.5 flex items-center justify-between">
+                  <p className="font-display text-[13.5px] font-extrabold tracking-tight text-ink">Dokumen <span className="font-mono text-[10.5px] font-semibold text-mute">({docs.length})</span></p>
+                  <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-line bg-card px-2.5 py-1.5 font-display text-[11px] font-bold text-ink2 transition hover:border-pine-500/50 hover:bg-pine-50 hover:text-pine-700">
+                    <FileText size={12} /> Tambah dokumen
+                    <input type="file" multiple className="hidden" onChange={(e) => { onDocPick(e.target.files); e.target.value = ""; }} />
+                  </label>
+                </div>
+                {docs.length === 0 ? (
+                  <EmptyState title="Belum ada dokumen" sub="Manual, BAST, sertifikat kalibrasi, invoice…" />
+                ) : (
+                  <div className="divide-y divide-line overflow-hidden rounded-lg border border-line">
+                    {docs.map((dc) => (
+                      <div key={dc.id} className="flex flex-wrap items-center gap-3 bg-card px-3 py-2.5 transition hover:bg-pine-50/50">
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-moss text-pine-700"><FileText size={16} /></span>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-[12.5px] font-bold text-ink">{dc.name}</p>
+                          <p className="truncate font-mono text-[9.5px] text-mute">{dc.size} · {dc.mime} · {dc.checksum}</p>
+                        </div>
+                        <span className="hidden font-mono text-[9.5px] text-mute sm:block">{dc.by} · {fmtDate(dc.date)}</span>
+                        {dc.dataUrl ? (
+                          <a href={dc.dataUrl} download={dc.name} className="inline-flex items-center gap-1 rounded-md border border-line bg-card px-2 py-1 font-display text-[10.5px] font-bold text-ink2 transition hover:border-pine-500/50 hover:text-pine-700">
+                            <Download size={11} /> Unduh
+                          </a>
+                        ) : <Chip tone="neutral">metadata</Chip>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <p className="font-mono text-[9.5px] text-mute">Metadata attachment: file_id · nama · mime · ukuran · checksum · pengunggah · waktu (akses tercatat di audit trail).</p>
+            </div>
+          )}
         </div>
       </Card>
+
+      {/* ── modal cetak label aset ── */}
+      <Modal open={labelOpen} onClose={() => setLabelOpen(false)} kicker="Label aset · QR + barcode" title={`Cetak label ${eq.code}`}
+        footer={<>
+          <BtnGhost onClick={() => { navigator.clipboard?.writeText(eq.code); toast(`Kode ${eq.code} disalin`); }}><Copy size={13} /> Salin Kode</BtnGhost>
+          <BtnPrimary onClick={() => printLabel(eq.id)}><Printer size={13} /> Kirim ke Printer Label</BtnPrimary>
+        </>}>
+        <div className="space-y-3">
+          <div className="flex justify-center">
+            <div className="w-full max-w-[340px] rounded-lg border-2 border-dashed border-line2 bg-white p-4 text-center shadow-sm">
+              <p className="font-mono text-[8.5px] font-bold uppercase tracking-[0.22em] text-mute">RS Harapan Medika · SIMASET</p>
+              <div className="mt-2 flex justify-center"><QRGlyph seed={eq.code + eq.serial} size={118} /></div>
+              <p className="mt-2 font-mono text-[15px] font-bold tracking-[0.06em] text-ink">{eq.code}</p>
+              <p className="mt-0.5 font-display text-[13px] font-extrabold tracking-tight text-ink2">{eq.name}</p>
+              <p className="font-mono text-[9.5px] text-mute">{eq.brand} {eq.model} · SN {eq.serial}</p>
+              <div className="mt-2 border-t border-dashed border-line2 pt-2">
+                <p className="font-mono text-[9.5px] text-ink2">{eq.building} · {eq.floor} · {eq.room}</p>
+                <p className="font-mono text-[9.5px] text-mute">Custodian: {eq.custodian}</p>
+              </div>
+              <div className="mx-auto mt-2.5 flex h-7 w-44 items-stretch justify-center gap-[2px]" aria-hidden>
+                {(eq.code + eq.serial).split("").map((ch, i) => (
+                  <span key={i} className="bg-ink" style={{ width: `${(ch.charCodeAt(0) % 3) + 1}px` }} />
+                ))}
+              </div>
+            </div>
+          </div>
+          <p className="rounded-md bg-infobg px-3 py-2 text-[11px] font-semibold text-info">
+            Scan QR via mobile field ops → langsung membuka Equipment 360° aset ini. Asset ID tidak pernah berubah (BR-002); pencetakan tercatat di audit trail.
+          </p>
+        </div>
+      </Modal>
 
       <p className="font-mono text-[10.5px] text-mute">Unit: <MonoTag>{eq.unit}</MonoTag> · Kategori <MonoTag>{eq.category}</MonoTag> · Asset ID imutabel (BR-002)</p>
     </div>
