@@ -12,8 +12,8 @@ export default function MasterData() {
     <div className="view-in space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="font-display text-[22px] font-black tracking-tight text-ink">Master Data</h1>
-          <p className="text-xs text-mute">Technician DB · Supplier DB — configuration over hardcoding</p>
+          <h1 className="font-display text-[22px] font-black tracking-tight text-ink">Data Induk</h1>
+          <p className="text-xs text-mute">Data dasar teknisi dan pemasok yang menjadi rujukan seluruh modul</p>
         </div>
       </div>
 
@@ -53,7 +53,7 @@ export default function MasterData() {
                 <thead>
                   <tr className="border-b border-line bg-canvas/70 font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-mute">
                     <th className="px-3 py-2.5">Supplier</th><th className="px-3 py-2.5">Layanan</th>
-                    <th className="px-3 py-2.5">Kontrak s.d.</th><th className="px-3 py-2.5">Status</th><th className="px-3 py-2.5 text-right">Equipment</th>
+                    <th className="px-3 py-2.5">Kontrak s.d.</th><th className="px-3 py-2.5">Status</th><th className="px-3 py-2.5 text-right">Jumlah Aset</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-line">

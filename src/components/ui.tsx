@@ -24,7 +24,12 @@ export function chipFor(status: string): Tone {
     SENT: "info", RECEIVED: "ok", PENDING: "warn", DELIVERED: "info",
     AKTIF: "ok", RENCANA: "info", NONAKTIF: "neutral", ACTIVE: "ok", PLANNED: "info", UNDER_RENOVATION: "warn", INACTIVE: "neutral",
     RECEIPT: "ok", ISSUE: "info", CONSUMPTION: "info", ADJUSTMENT: "warn", OPENING_BALANCE: "neutral", STOCK_OPNAME: "info",
-    PREVENTIVE: "pine", CORRECTIVE: "warn",
+    TRANSFER: "info", RETURN: "warn", EXPIRED_TX: "danger",
+    PREVENTIVE: "pine", CORRECTIVE: "warn", PREDICTIVE: "info",
+    AWAITING_VERIFICATION: "warn", WAITING_PART: "warn", WAITING_VENDOR: "warn", VERIFIED: "ok",
+    PASS: "ok", ADJUSTED: "warn", FAIL: "danger", CONDITIONAL: "warn",
+    REQUESTED: "warn", ON_LOAN: "info", RETURNED: "neutral", COMPLETED: "ok",
+    COMPLAINT: "danger", REPAIR: "warn", INSPECTION: "info", ASSIGNMENT: "pine", COST: "warn", SPARE_PART: "info", UTILIZATION: "info", FINANCE: "ok",
     DIAJUKAN: "warn", DIKIRIM: "info", DIGANTI: "ok", REFUND: "warn", DITUTUP: "neutral",
     KURANG: "warn", RUSAK: "danger", BAIK: "ok",
     VENDOR: "info", DOCUMENT: "neutral", LIFECYCLE: "pine", PROCUREMENT: "info",
@@ -41,8 +46,57 @@ export function Chip({ tone, children, dot, pulse, className = "" }: { tone: Ton
   );
 }
 
+/* ── terjemahan status ke Bahasa Indonesia yang mudah dimengerti ── */
+export const STATUS_ID: Record<string, string> = {
+  // status operasional aset
+  IN_SERVICE: "Beroperasi", MAINTENANCE: "Perbaikan", CALIBRATION: "Kalibrasi", DOWN: "Rusak / Mati",
+  RETIRED: "Pensiun", DISPOSED: "Dihapuskan",
+  // status kalibrasi
+  VALID: "Kalibrasi Sah", DUE_SOON: "Segera Kalibrasi", EXPIRED: "Kalibrasi Kadaluarsa", NOT_REQUIRED: "Tanpa Kalibrasi",
+  // prioritas / risiko
+  HIGH: "Tinggi", MEDIUM: "Sedang", LOW: "Rendah", CRITICAL: "Kritis",
+  // kondisi fisik
+  EXCELLENT: "Sangat Baik", GOOD: "Baik", FAIR: "Cukup", POOR: "Buruk",
+  // work order
+  SCHEDULED: "Terjadwal", IN_PROGRESS: "Dikerjakan", CLOSED: "Selesai", AWAITING_VERIFICATION: "Menunggu Verifikasi",
+  // keluhan
+  OPEN: "Terbuka", RESOLVED: "Terselesaikan", ACKNOWLEDGED: "Ditanggapi",
+  WAITING_PART: "Menunggu Suku Cadang", WAITING_VENDOR: "Menunggu Vendor", VERIFIED: "Terverifikasi",
+  // pengadaan
+  IN_APPROVAL: "Menunggu Persetujuan", APPROVED: "Disetujui", REJECTED: "Ditolak", PO_CREATED: "PO Terbit",
+  DRAFT: "Draf", SUBMITTED: "Diajukan", REVIEWED: "Ditinjau", CONSOLIDATED: "Digabung",
+  // logistik
+  SENT: "Terkirim", RECEIVED: "Diterima", PENDING: "Menunggu", DELIVERED: "Sampai Tujuan",
+  COUNTING: "Dihitung",
+  // gedung & lokasi
+  AKTIF: "Aktif", RENCANA: "Rencana", NONAKTIF: "Nonaktif", ACTIVE: "Aktif", PLANNED: "Terencana",
+  UNDER_RENOVATION: "Direnovasi", INACTIVE: "Tidak Aktif",
+  // transaksi stok
+  RECEIPT: "Penerimaan", ISSUE: "Pengeluaran", CONSUMPTION: "Pemakaian", ADJUSTMENT: "Penyesuaian",
+  OPENING_BALANCE: "Saldo Awal", STOCK_OPNAME: "Opname Stok", TRANSFER: "Pemindahan", RETURN: "Retur",
+  EXPIRED_TX: "Kadaluarsa",
+  // jenis perawatan
+  PREVENTIVE: "Pencegahan", CORRECTIVE: "Perbaikan", PREDICTIVE: "Prediktif",
+  // retur vendor
+  DIAJUKAN: "Diajukan", DIKIRIM: "Dikirim ke Vendor", DIGANTI: "Diganti", REFUND: "Dana Kembali", DITUTUP: "Ditutup",
+  KURANG: "Kurang", RUSAK: "Rusak", BAIK: "Baik",
+  // tipe event
+  VENDOR: "Vendor", DOCUMENT: "Dokumen", LIFECYCLE: "Siklus Hidup", PROCUREMENT: "Pengadaan",
+  COMPLAINT: "Keluhan", REPAIR: "Perbaikan", INSPECTION: "Inspeksi", ASSIGNMENT: "Penugasan",
+  COST: "Biaya", SPARE_PART: "Suku Cadang", UTILIZATION: "Pemanfaatan", FINANCE: "Keuangan",
+  // hasil
+  PASS: "Lulus", ADJUSTED: "Disesuaikan", FAIL: "Gagal", CONDITIONAL: "Bersyarat",
+  // pinjaman / sewa
+  REQUESTED: "Diminta", ON_LOAN: "Dipinjam", RETURNED: "Dikembalikan", COMPLETED: "Selesai",
+  // lain-lain
+  IT: "IT", ASSET: "Aset", ITEM: "Barang", BHP: "Habis Pakai",
+  FULL: "Penuh",
+};
+
+export const statusId = (status: string): string => STATUS_ID[status] ?? status.replace(/_/g, " ");
+
 export const StatusChip = ({ status, pulse, className }: { status: string; pulse?: boolean; className?: string }) => (
-  <Chip tone={chipFor(status)} dot pulse={pulse} className={className}>{status.replace(/_/g, " ")}</Chip>
+  <Chip tone={chipFor(status)} dot pulse={pulse} className={className}>{statusId(status)}</Chip>
 );
 
 export const Card = ({ className = "", children }: { className?: string; children: React.ReactNode }) => (

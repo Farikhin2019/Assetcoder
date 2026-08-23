@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useApp } from "../lib/store";
-import { Card, Kpi, SectionHead, StatusChip, Bar, Chip } from "../components/ui";
+import { Card, Kpi, SectionHead, StatusChip, Bar, Chip, statusId } from "../components/ui";
 import { fmtDate, fmtIDRCompact, relTime, daysUntil } from "../lib/types";
 import { Activity, AlertTriangle, ArrowRight, Wrench, Gauge, PackageCheck } from "lucide-react";
 
@@ -22,13 +22,13 @@ export default function Dashboard() {
 
   const attention = useMemo(() => {
     const out: { label: string; detail: string; sev: "danger" | "warn"; go: () => void }[] = [];
-    s.equipment.filter((e) => e.calStatus === "EXPIRED").forEach((e) => out.push({ label: `Kalibrasi EXPIRED — ${e.name}`, detail: `${e.code} · ${e.room}`, sev: "danger", go: () => nav("equipment-detail", e.id) }));
+    s.equipment.filter((e) => e.calStatus === "EXPIRED").forEach((e) => out.push({ label: `Kalibrasi kadaluarsa — ${e.name}`, detail: `${e.code} · ${e.room}`, sev: "danger", go: () => nav("equipment-detail", e.id) }));
     s.workOrders.filter((w) => w.status !== "CLOSED" && daysUntil(w.scheduled) < 0).forEach((w) => {
       const eq = s.equipment.find((e) => e.id === w.eqId);
-      out.push({ label: `PM overdue — ${w.wo}`, detail: eq?.name ?? "", sev: "warn", go: () => nav("maintenance") });
+      out.push({ label: `Perawatan terlambat — ${w.wo}`, detail: eq?.name ?? "", sev: "warn", go: () => nav("maintenance") });
     });
-    s.items.filter((i) => i.stock <= i.reorder).forEach((i) => out.push({ label: `Stok menipis — ${i.name}`, detail: `${i.stock} ${i.uom} ≤ ROP ${i.reorder}`, sev: "warn", go: () => nav("inventory") }));
-    s.complaints.filter((c) => c.status === "OPEN").forEach((c) => out.push({ label: `Keluhan terbuka — ${c.code}`, detail: c.priority, sev: c.priority === "CRITICAL" ? "danger" : "warn", go: () => nav("maintenance") }));
+    s.items.filter((i) => i.stock <= i.reorder).forEach((i) => out.push({ label: `Stok menipis — ${i.name}`, detail: `Sisa ${i.stock} ${i.uom} (batas minimum ${i.reorder})`, sev: "warn", go: () => nav("inventory") }));
+    s.complaints.filter((c) => c.status === "OPEN").forEach((c) => out.push({ label: `Keluhan terbuka — ${c.code}`, detail: `Prioritas ${statusId(c.priority)}`, sev: c.priority === "CRITICAL" ? "danger" : "warn", go: () => nav("maintenance") }));
     return out.slice(0, 6);
   }, [s, nav]);
 
@@ -41,7 +41,7 @@ export default function Dashboard() {
           <h1 className="font-display text-[22px] font-black tracking-tight text-ink">Dashboard Operasional</h1>
           <p className="text-xs text-mute">Selamat datang, <b className="text-pine-700">{s.userName}</b> · {s.role}{s.userUnit ? ` · ${s.userUnit}` : ""} — denyut aset & inventori hari ini</p>
         </div>
-        <Chip tone="pine" dot>{m.inService} aset in-service</Chip>
+        <Chip tone="pine" dot>{m.inService} aset beroperasi</Chip>
       </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -54,7 +54,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
         {/* attention queue */}
         <Card className="p-4 lg:col-span-2">
-          <SectionHead title="Attention Queue" sub="Hal yang butuh tindakan — diurutkan berdasar keparahan"
+          <SectionHead title="Perlu Perhatian" sub="Hal yang butuh tindakan segera — diurutkan dari yang paling mendesak"
             right={<Chip tone={attention.some((a) => a.sev === "danger") ? "danger" : "warn"} dot pulse>{attention.length} item</Chip>} />
           <div className="space-y-2">
             {attention.length === 0 && <p className="py-6 text-center text-xs text-mute">Semua terkendali ✓</p>}
@@ -110,7 +110,7 @@ export default function Dashboard() {
         </Card>
 
         <Card className="p-4">
-          <SectionHead title="Timeline aset terbaru" sub="Semua event teknis menggulung ke Equipment 360°" />
+          <SectionHead title="Aktivitas aset terbaru" sub="Semua kegiatan teknis tercatat dan menggulung ke Aset Medis 360°" />
           <div className="space-y-2.5">
             {s.timeline.slice(0, 5).map((t) => {
               const eq = s.equipment.find((e) => e.id === t.eqId);

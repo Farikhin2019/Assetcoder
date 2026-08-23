@@ -10,8 +10,8 @@ export default function Rbac() {
   return (
     <div className="view-in space-y-4">
       <div>
-        <h1 className="font-display text-[22px] font-black tracking-tight text-ink">Peran & Akses (RBAC)</h1>
-        <p className="text-xs text-mute">User → Role → Permission → Organization Scope → Data Scope · klik user untuk masuk sebagai mereka</p>
+        <h1 className="font-display text-[22px] font-black tracking-tight text-ink">Peran & Akses Pengguna</h1>
+        <p className="text-xs text-mute">Setiap pengguna punya peran dan batasan data masing-masing · klik pengguna untuk mencoba masuk sebagai mereka</p>
       </div>
 
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">

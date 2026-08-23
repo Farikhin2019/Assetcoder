@@ -14,8 +14,8 @@ export default function Approvals() {
     <div className="view-in space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="font-display text-[22px] font-black tracking-tight text-ink">Approval Engine</h1>
-          <p className="text-xs text-mute">Matrix configurable: tipe transaksi · nilai · kategori · role (BR-005/006/007) · persetujuan PR via 3 tahap di Procurement</p>
+          <h1 className="font-display text-[22px] font-black tracking-tight text-ink">Pusat Persetujuan</h1>
+          <p className="text-xs text-mute">Persetujuan berjalan bertingkat sesuai jenis transaksi, nilai, dan peran Anda · persetujuan pembelian (PR) dilakukan 3 tahap di menu Pengadaan</p>
         </div>
         <Chip tone="warn" dot pulse={pending.length > 0}>{pending.length} PR menunggu</Chip>
       </div>

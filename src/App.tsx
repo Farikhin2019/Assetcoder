@@ -20,11 +20,11 @@ import {
 } from "lucide-react";
 
 const TITLES: Record<View, string> = {
-  login: "Masuk", command: "Command Center", dashboard: "Dashboard",
-  equipment: "Equipment 360°", "equipment-detail": "Equipment 360°",
-  inventory: "Inventory & Ledger", procurement: "Procurement", maintenance: "Maintenance & Kalibrasi",
-  locations: "Lokasi & Organisasi", approvals: "Approval Engine", audit: "Audit Trail",
-  rbac: "Peran & Akses", master: "Master Data", config: "Konfigurasi",
+  login: "Masuk", command: "Pusat Kendali", dashboard: "Dasbor Utama",
+  equipment: "Aset Medis 360°", "equipment-detail": "Aset Medis 360°",
+  inventory: "Stok & Buku Besar", procurement: "Pengadaan Barang", maintenance: "Perawatan & Kalibrasi",
+  locations: "Lokasi & Organisasi", approvals: "Pusat Persetujuan", audit: "Riwayat Audit",
+  rbac: "Peran & Akses Pengguna", master: "Data Induk", config: "Pengaturan Sistem",
 };
 
 function Clock() {
@@ -39,28 +39,28 @@ function Shell() {
   const pendingPr = s.purchaseRequests.filter((p) => p.status === "IN_APPROVAL").length;
 
   const NAV: { group: string; items: { id: View; label: string; icon: ReactNode; badge?: number }[] }[] = [
-    { group: "Pantau", items: [
-      { id: "dashboard", label: "Dashboard", icon: <LayoutDashboard size={15} /> },
+    { group: "Pantauan", items: [
+      { id: "dashboard", label: "Dasbor Utama", icon: <LayoutDashboard size={15} /> },
     ]},
     { group: "Aset", items: [
-      { id: "equipment", label: "Equipment 360°", icon: <ScanLine size={15} /> },
+      { id: "equipment", label: "Aset Medis 360°", icon: <ScanLine size={15} /> },
       { id: "locations", label: "Lokasi & Organisasi", icon: <MapPin size={15} /> },
     ]},
-    { group: "Inventori & Pengadaan", items: [
-      { id: "inventory", label: "Inventory & Ledger", icon: <PackageSearch size={15} /> },
-      { id: "procurement", label: "Procurement", icon: <ShoppingCart size={15} />, badge: pendingPr },
+    { group: "Stok & Pengadaan", items: [
+      { id: "inventory", label: "Stok & Buku Besar", icon: <PackageSearch size={15} /> },
+      { id: "procurement", label: "Pengadaan Barang", icon: <ShoppingCart size={15} />, badge: pendingPr },
     ]},
     { group: "Teknis", items: [
-      { id: "maintenance", label: "Maintenance & Cal.", icon: <Wrench size={15} /> },
+      { id: "maintenance", label: "Perawatan & Kalibrasi", icon: <Wrench size={15} /> },
     ]},
     { group: "Tata Kelola", items: [
-      { id: "approvals", label: "Approvals", icon: <ClipboardCheck size={15} />, badge: pendingPr },
-      { id: "audit", label: "Audit Trail", icon: <ShieldCheck size={15} /> },
+      { id: "approvals", label: "Pusat Persetujuan", icon: <ClipboardCheck size={15} />, badge: pendingPr },
+      { id: "audit", label: "Riwayat Audit", icon: <ShieldCheck size={15} /> },
       { id: "rbac", label: "Peran & Akses", icon: <Users size={15} /> },
     ]},
-    { group: "Master", items: [
-      { id: "master", label: "Master Data", icon: <Stethoscope size={15} /> },
-      { id: "config", label: "Konfigurasi", icon: <Cog size={15} /> },
+    { group: "Data Induk", items: [
+      { id: "master", label: "Data Induk", icon: <Stethoscope size={15} /> },
+      { id: "config", label: "Pengaturan Sistem", icon: <Cog size={15} /> },
     ]},
   ];
 

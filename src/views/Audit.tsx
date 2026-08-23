@@ -24,8 +24,8 @@ export default function Audit() {
     <div className="view-in space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="font-display text-[22px] font-black tracking-tight text-ink">Audit Trail</h1>
-          <p className="text-xs text-mute">Imutabel (BR-010) · who / what / when / why · actor, aksi, entitas</p>
+          <h1 className="font-display text-[22px] font-black tracking-tight text-ink">Riwayat Audit</h1>
+          <p className="text-xs text-mute">Catatan permanen yang tidak bisa diubah · merekam siapa melakukan apa, kapan, dan mengapa</p>
         </div>
         <div className="flex items-center gap-2">
           <Chip tone="pine" dot>{s.audit.length} entri</Chip>

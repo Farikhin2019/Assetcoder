@@ -37,7 +37,7 @@ export default function Locations() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="font-display text-[22px] font-black tracking-tight text-ink">Lokasi & Organisasi</h1>
-          <p className="text-xs text-mute">Organization → Hospital → Building → Floor → Room → Unit · <b className="text-pine-700">satu aset = satu lokasi aktif</b></p>
+          <p className="text-xs text-mute">Susunan: Organisasi → Rumah Sakit → Gedung → Lantai → Ruangan → Unit · <b className="text-pine-700">satu aset hanya berada di satu lokasi aktif</b></p>
         </div>
         <div className="flex gap-2">
           <Chip tone="pine" dot>{activeEq.length} aset terpetakan</Chip>

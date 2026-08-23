@@ -121,8 +121,8 @@ export default function Procurement() {
     <div className="view-in space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="font-display text-[22px] font-black tracking-tight text-ink">Procurement</h1>
-          <p className="text-xs text-mute">Purchase Request → Persetujuan 3 tahap → PO → GRN → Distribusi → unit terima</p>
+          <h1 className="font-display text-[22px] font-black tracking-tight text-ink">Pengadaan Barang</h1>
+          <p className="text-xs text-mute">Permintaan → Persetujuan 3 tahap → Pesanan (PO) → Terima Barang → Kirim ke unit → Serah terima</p>
         </div>
         <div className="flex flex-col items-end gap-1">
           <Chip tone={roleCaps.length > 0 ? "ok" : "neutral"} dot>
@@ -154,15 +154,14 @@ export default function Procurement() {
 
       <Card className="p-4">
         <Tabs active={tab} onChange={setTab}
-          tabs={[{ id: "pr", label: "Purchase Request" }, { id: "po", label: "Purchase Order" }, { id: "dist", label: "Distribusi ke Unit" }, { id: "bast", label: "Serah Terima (BAST)" }, { id: "retur", label: "Retur Vendor" }]}
+          tabs={[{ id: "pr", label: "Permintaan (PR)" }, { id: "po", label: "Pesanan (PO)" }, { id: "dist", label: "Distribusi ke Unit" }, { id: "bast", label: "Serah Terima (BAST)" }, { id: "retur", label: "Retur ke Vendor" }]}
           counts={{ pr: s.purchaseRequests.length, po: s.purchaseOrders.length, dist: s.deliveries.filter((d) => d.status !== "RECEIVED").length, bast: s.handovers.length, retur: s.vendorReturns.filter((r) => r.status !== "DITUTUP").length }} />
         <div className="pt-4">
           {tab === "pr" && (
             <div className="space-y-4">
               <div className="flex justify-end">
                 <BtnPrimary disabled={!canCreatePr(s.role)} title={!canCreatePr(s.role) ? "Hanya Kepala Unit / Pengelola Inventory / Direksi" : undefined} onClick={() => setNewPr(true)}>
-                  <FilePlus2 size={14} /> Ajukan Purchase Request
-                </BtnPrimary>
+                        <FilePlus2 size={14} /> Ajukan Permintaan (PR)                </BtnPrimary>
               </div>
 
               {s.purchaseRequests.map((pr) => (
@@ -666,7 +665,7 @@ function NewPrModal({ open, onClose, onSubmit }: { open: boolean; onClose: () =>
   const total = lines.reduce((a, l) => a + l.qty * l.unitCost, 0);
 
   return (
-    <Modal open={open} onClose={onClose} wide kicker={`Ajukan PR · unit ${s.userUnit ?? "—"}`} title="Purchase Request baru"
+    <Modal open={open} onClose={onClose} wide kicker={`Ajukan PR · unit ${s.userUnit ?? "—"}`} title="Permintaan Pembelian Baru"
       footer={<><BtnGhost onClick={onClose}>Batal</BtnGhost><BtnPrimary onClick={submit} disabled={lines.length === 0}><Wallet size={13} /> Ajukan ({fmtIDRCompact(total)})</BtnPrimary></>}>
       <div className="space-y-3.5">
         <div>

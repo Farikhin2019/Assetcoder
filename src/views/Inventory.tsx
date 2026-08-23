@@ -34,8 +34,8 @@ export default function Inventory() {
     <div className="view-in space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="font-display text-[22px] font-black tracking-tight text-ink">Inventory & Ledger</h1>
-          <p className="text-xs text-mute">Ledger append-only = source of truth (BR-003/008) · saldo stok = cache turunan</p>
+          <h1 className="font-display text-[22px] font-black tracking-tight text-ink">Stok & Buku Besar</h1>
+          <p className="text-xs text-mute">Buku besar hanya-tambah adalah sumber kebenaran · setiap mutasi stok tercatat dan tidak bisa dihapus</p>
         </div>
         <div className="flex gap-2">
           <Chip tone="pine" dot>{s.items.length} SKU</Chip>
@@ -52,8 +52,8 @@ export default function Inventory() {
           <table className="w-full min-w-[900px] text-left">
             <thead>
               <tr className="border-b border-line bg-canvas/70 font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-mute">
-                <th className="px-3 py-2.5">Item</th><th className="px-3 py-2.5">Gudang</th>
-                <th className="px-3 py-2.5 text-right">Stok</th><th className="px-3 py-2.5 w-36">Level</th>
+                <th className="px-3 py-2.5">Barang</th><th className="px-3 py-2.5">Gudang</th>
+                <th className="px-3 py-2.5 text-right">Stok</th><th className="px-3 py-2.5 w-36">Level Stok</th>
                 <th className="px-3 py-2.5 text-right">Nilai</th><th className="px-3 py-2.5">Metode</th><th className="px-3 py-2.5">Status</th><th className="px-3 py-2.5" />
               </tr>
             </thead>
@@ -95,8 +95,8 @@ export default function Inventory() {
             <table className="w-full min-w-[760px] text-left">
               <thead>
                 <tr className="border-b border-line bg-canvas/70 font-mono text-[10px] font-semibold uppercase tracking-[0.1em] text-mute">
-                  <th className="px-3 py-2">Tanggal</th><th className="px-3 py-2">Tipe</th><th className="px-3 py-2 text-right">Qty</th>
-                  <th className="px-3 py-2 text-right">Saldo</th><th className="px-3 py-2">Ref</th><th className="px-3 py-2">Aktor</th>
+                  <th className="px-3 py-2">Tanggal</th><th className="px-3 py-2">Jenis</th><th className="px-3 py-2 text-right">Jumlah</th>
+                  <th className="px-3 py-2 text-right">Saldo</th><th className="px-3 py-2">Referensi</th><th className="px-3 py-2">Pelaku</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">

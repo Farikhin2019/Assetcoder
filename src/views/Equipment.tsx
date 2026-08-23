@@ -26,8 +26,8 @@ function EquipmentList() {
     <div className="view-in space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="font-display text-[22px] font-black tracking-tight text-ink">Equipment Registry</h1>
-          <p className="text-xs text-mute">{s.equipment.length} aset medis terdaftar · klik untuk membuka Equipment 360°</p>
+          <h1 className="font-display text-[22px] font-black tracking-tight text-ink">Daftar Aset Medis</h1>
+          <p className="text-xs text-mute">{s.equipment.length} aset medis terdaftar · klik untuk melihat detail lengkap (Aset 360°)</p>
         </div>
         <div className="flex gap-2">
           <Chip tone="ok" dot>{s.equipment.filter((e) => e.opStatus === "IN_SERVICE").length} IN SERVICE</Chip>
@@ -191,12 +191,12 @@ function EquipmentDetail() {
 
       <Card className="p-4">
         <Tabs active={tab} onChange={setTab}
-          tabs={[{ id: "timeline", label: "Timeline" }, { id: "wo", label: "Work Order" }, { id: "cal", label: "Kalibrasi" }, { id: "cmp", label: "Keluhan" }, { id: "lamp", label: "Foto & Dokumen" }]}
+          tabs={[{ id: "timeline", label: "Riwayat Aktivitas" }, { id: "wo", label: "Perintah Kerja" }, { id: "cal", label: "Kalibrasi" }, { id: "cmp", label: "Keluhan" }, { id: "lamp", label: "Foto & Dokumen" }]}
           counts={{ timeline: tl.length, wo: wos.length, cal: cals.length, cmp: cmps.length, lamp: photos.length + docs.length }} />
         <div className="pt-4">
           {tab === "timeline" && (
             <div className="space-y-2.5">
-              {tl.length === 0 && <EmptyState title="Belum ada event" sub="Aktivitas teknis akan menggulung ke sini (BR-018)." />}
+              {tl.length === 0 && <EmptyState title="Belum ada aktivitas" sub="Semua kegiatan perawatan, kalibrasi, dan perbaikan tercatat di sini." />}
               {tl.map((t, i) => (
                 <div key={t.id} className="row-in flex items-start gap-3 rounded-md border border-line bg-paper px-3 py-2.5" style={{ animationDelay: `${i * 50}ms` }}>
                   <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-pine-500" />
@@ -212,7 +212,7 @@ function EquipmentDetail() {
           )}
           {tab === "wo" && (
             <div className="space-y-2.5">
-              {wos.length === 0 && <EmptyState title="Belum ada work order" />}
+              {wos.length === 0 && <EmptyState title="Belum ada perintah kerja" sub="Perintah perawatan untuk aset ini akan tampil di sini." />}
               {wos.map((w) => (
                 <div key={w.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-line bg-paper px-3 py-2.5">
                   <div className="flex items-center gap-2.5">

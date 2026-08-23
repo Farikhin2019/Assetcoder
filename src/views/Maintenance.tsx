@@ -40,8 +40,8 @@ export default function Maintenance() {
     <div className="view-in space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="font-display text-[22px] font-black tracking-tight text-ink">Maintenance, Kalibrasi & Keluhan</h1>
-          <p className="text-xs text-mute">Schedule → Work Order → Eksekusi → Verifikasi → Close · semua event → Equipment Timeline (BR-018)</p>
+          <h1 className="font-display text-[22px] font-black tracking-tight text-ink">Perawatan, Kalibrasi & Keluhan</h1>
+          <p className="text-xs text-mute">Jadwal → Perintah Kerja → Dikerjakan → Verifikasi → Selesai · semua kegiatan tercatat di riwayat aset</p>
         </div>
         <div className="flex gap-2">
           <Chip tone="info" dot>{openWo} OPEN WO</Chip>
