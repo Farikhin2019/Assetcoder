@@ -1,0 +1,43 @@
+import React from "react";
+type P = { size?: number; className?: string };
+const I = ({ size = 16, className = "", children }: P & { children: React.ReactNode }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
+    strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">{children}</svg>
+);
+export const IcPulse = (p: P) => (<I {...p}><path d="M3 12h4l2.5-6 4 12 2.5-6H21" /></I>);
+export const IcScan = (p: P) => (<I {...p}><path d="M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16" /><path d="M4 12h16" /></I>);
+export const IcBox = (p: P) => (<I {...p}><path d="M21 8.5 12 4 3 8.5v7L12 20l9-4.5v-7Z" /><path d="M3 8.5 12 13l9-4.5M12 13v7" /></I>);
+export const IcWrench = (p: P) => (<I {...p}><path d="M14.2 6.3a4.2 4.2 0 0 0-5.6 5.2L4 16.1a2 2 0 1 0 2.8 2.8l4.6-4.6a4.2 4.2 0 0 0 5.2-5.6L14 11.3l-2.4-2.4 2.6-2.6Z" /></I>);
+export const IcFlag = (p: P) => (<I {...p}><path d="M5 21V4.5A1.5 1.5 0 0 1 6.5 3h11l-2.5 4 2.5 4h-11" /></I>);
+export const IcGauge = (p: P) => (<I {...p}><path d="M5 19a8.5 8.5 0 1 1 14 0" /><path d="m12 13 3.5-3.5" /><circle cx="12" cy="13.5" r="1.3" /></I>);
+export const IcStamp = (p: P) => (<I {...p}><path d="M12 3a3 3 0 0 0-3 3c0 2 1 3 1 5H8a3 3 0 0 0-3 3v2h14v-2a3 3 0 0 0-3-3h-2c0-2 1-3 1-5a3 3 0 0 0-3-3Z" /><path d="M5 20h14" /></I>);
+export const IcScroll = (p: P) => (<I {...p}><path d="M6 4h12a1.5 1.5 0 0 1 1.5 1.5v13A1.5 1.5 0 0 1 18 20H6a1.5 1.5 0 0 1-1.5-1.5v-13A1.5 1.5 0 0 1 6 4Z" /><path d="M8.5 9h7M8.5 12.5h7M8.5 16h4" /></I>);
+export const IcBell = (p: P) => (<I {...p}><path d="M18 9a6 6 0 1 0-12 0c0 5-2 6-2 6h16s-2-1-2-6" /><path d="M10.3 19.5a2 2 0 0 0 3.4 0" /></I>);
+export const IcSearch = (p: P) => (<I {...p}><circle cx="11" cy="11" r="6.5" /><path d="m20 20-3.8-3.8" /></I>);
+export const IcChevD = (p: P) => <I {...p}><path d="m5 9 7 7 7-7" /></I>;
+export const IcBack = (p: P) => <I {...p}><path d="M15 5l-7 7 7 7" /></I>;
+export const IcClose = (p: P) => <I {...p}><path d="M6 6l12 12M18 6 6 18" /></I>;
+export const IcPlus = (p: P) => <I {...p}><path d="M12 5v14M5 12h14" /></I>;
+export const IcSwap = (p: P) => (<I {...p}><path d="M7 4 3.5 7.5 7 11M3.5 7.5H17M17 13l3.5 3.5L17 20M20.5 16.5H7" /></I>);
+export const IcCal = (p: P) => (<I {...p}><rect x="4" y="5.5" width="16" height="15" rx="1.8" /><path d="M8 3.5v4M16 3.5v4M4 10.5h16" /></I>);
+export const IcPin = (p: P) => (<I {...p}><path d="M12 21s-6.5-5.6-6.5-10.4A6.5 6.5 0 0 1 12 4a6.5 6.5 0 0 1 6.5 6.6C18.5 15.4 12 21 12 21Z" /><circle cx="12" cy="10.5" r="2.2" /></I>);
+export const IcUser = (p: P) => (<I {...p}><circle cx="12" cy="8" r="3.6" /><path d="M4.5 20a7.5 7.5 0 0 1 15 0" /></I>);
+export const IcWarn = (p: P) => (<I {...p}><path d="M12 4 2.8 19.5h18.4L12 4Z" /><path d="M12 10v4.2M12 17.2v.2" /></I>);
+export const IcClock = (p: P) => <I {...p}><circle cx="12" cy="12" r="8.2" /><path d="M12 7.5V12l3.2 2" /></I>;
+export const IcCheck = (p: P) => <I {...p}><path d="m4.5 12.5 5 5L19.5 7" /></I>;
+export const IcX = (p: P) => <I {...p}><path d="M6 6l12 12M18 6 6 18" /></I>;
+export const IcDoc = (p: P) => (<I {...p}><path d="M6 3.5h8L19 8.5v12H6v-17Z" /><path d="M13.5 3.5v5.5H19M9 13h6M9 16.5h6" /></I>);
+export const IcLedger = (p: P) => (<I {...p}><path d="M5 4h14v16H5z" /><path d="M9 4v16M12.5 8.5h3.5M12.5 12h3.5" /></I>);
+export const IcShield = (p: P) => (<I {...p}><path d="M12 3.5 5 6v5.5c0 4.6 3 7.7 7 9 4-1.3 7-4.4 7-9V6l-7-2.5Z" /><path d="m9 12 2 2 4-4.5" /></I>);
+export const IcBolt = (p: P) => <I {...p}><path d="M13 3 5 13.5h5.5L11 21l8-10.5h-5.5L13 3Z" /></I>;
+export const IcLayers = (p: P) => (<I {...p}><path d="m12 3.5 8.5 4.5L12 12.5 3.5 8 12 3.5Z" /><path d="m4.5 12.5 7.5 4 7.5-4M4.5 16.5l7.5 4 7.5-4" /></I>);
+export const IcTag = (p: P) => (<I {...p}><path d="M13 4h6v6l-8.5 8.5a1.8 1.8 0 0 1-2.5 0l-3.5-3.5a1.8 1.8 0 0 1 0-2.5L13 4Z" /><circle cx="16" cy="7.5" r="1.1" /></I>);
+export const IcSend = (p: P) => <I {...p}><path d="M20.5 3.5 10 14M20.5 3.5 14 20.5l-4-6.5-7-2.5 17.5-8Z" /></I>;
+export const IcHospital = (p: P) => (<I {...p}><path d="M4 20V8l8-4.5L20 8v12" /><path d="M2.5 20h19M10 20v-5h4v5M12 8.5v4M10 10.5h4" /></I>);
+export const IcTruck = (p: P) => (<I {...p}><path d="M2.5 6h11v10h-11zM13.5 9.5H18l3 3.5v3h-7.5" /><circle cx="6.5" cy="17.5" r="1.7" /><circle cx="17" cy="17.5" r="1.7" /></I>);
+export const IcChart = (p: P) => (<I {...p}><path d="M4 4v16h16" /><path d="M8 16v-5M12 16V8M16 16v-8.5" /></I>);
+export const IcForm = (p: P) => (<I {...p}><path d="M5 4h14v16H5z" /><path d="m7.5 8.5 1.2 1.2 2.3-2.4M7.5 14l1.2 1.2 2.3-2.4M13.5 9h3M13.5 14.5h3" /></I>);
+export const IcDownload = (p: P) => <I {...p}><path d="M12 4v10M8 10.5l4 4 4-4M5 19.5h14" /></I>;
+export const IcEye = (p: P) => (<I {...p}><path d="M2.5 12S6 5.8 12 5.8 21.5 12 21.5 12 18 18.2 12 18.2 2.5 12 2.5 12Z" /><circle cx="12" cy="12" r="2.8" /></I>);
+export const IcCart = (p: P) => (<I {...p}><path d="M3.5 5h2.5l2 11h11l2-8H7" /><circle cx="9.5" cy="19.5" r="1.4" /><circle cx="17.5" cy="19.5" r="1.4" /></I>);
+export const IcPhone = (p: P) => (<I {...p}><rect x="7.5" y="3.5" width="9" height="17" rx="1.8" /><path d="M11 17.8h2" /></I>);
