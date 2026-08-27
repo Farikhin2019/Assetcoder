@@ -88,13 +88,13 @@ export default function EventBus() {
               const expanded = open === e.event_id;
               return (
                 <div key={e.event_id} className="row-in border-b transition hover:bg-white/[0.02]" style={{ borderColor: C.line, animationDelay: `${Math.min(i, 12) * 30}ms` }}>
-                  <button onClick={() => setOpen(expanded ? null : e.event_id)} className="flex w-full items-center gap-3 px-4 py-2 text-left">
+                  <button onClick={() => setOpen(expanded ? null : e.event_id)} className="flex w-full flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2 text-left">
                     <span className="shrink-0 font-mono text-[10px]" style={{ color: C.dim }}>{fmtTime(e.timestamp)}</span>
                     <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: AGG_COLOR[e.aggregate_type] }} />
-                    <span className="w-64 shrink-0 truncate font-mono text-[11.5px] font-bold" style={{ color: AGG_COLOR[e.aggregate_type] }}>{e.event_type}</span>
+                    <span className="min-w-0 truncate font-mono text-[10.5px] font-bold sm:w-56 sm:shrink-0 sm:text-[11.5px]" style={{ color: AGG_COLOR[e.aggregate_type] }}>{e.event_type}</span>
                     <span className="hidden w-28 shrink-0 truncate font-mono text-[10.5px] md:block" style={{ color: "#e8f2ec" }}>{e.aggregate_id}</span>
-                    <span className="min-w-0 flex-1 truncate font-mono text-[10.5px]" style={{ color: C.mute }}>{e.payload}</span>
-                    <IcChevD size={12} className={`shrink-0 transition-transform ${expanded ? "rotate-180" : ""}`} />
+                    <span className="w-full min-w-0 truncate font-mono text-[10px] sm:w-auto sm:flex-1 sm:text-[10.5px]" style={{ color: C.mute }}>{e.payload}</span>
+                    <IcChevD size={12} className={`ml-auto shrink-0 transition-transform ${expanded ? "rotate-180" : ""}`} />
                   </button>
                   {expanded && (
                     <div className="msg-in mx-4 mb-3 rounded-md border p-3 font-mono text-[10.5px] leading-relaxed" style={{ borderColor: C.line, background: C.panel }}>

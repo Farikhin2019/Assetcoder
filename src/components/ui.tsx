@@ -1,6 +1,6 @@
 import React, { useEffect } from "react";
 import { useApp } from "../lib/store";
-import { IcCheck, IcClose, IcWarn, IcBolt } from "./icons";
+import { Check, X, AlertTriangle, Info } from "lucide-react";
 
 export type Tone = "ok" | "warn" | "danger" | "info" | "neutral" | "pine";
 
@@ -14,32 +14,46 @@ const TONE_DOT: Record<Tone, string> = {
 
 export function chipFor(status: string): Tone {
   const map: Record<string, Tone> = {
-    IN_SERVICE: "ok", MAINTENANCE: "warn", CALIBRATION: "info", DOWN: "danger", RETIRED: "neutral",
-    VALID: "ok", DUE_SOON: "warn", EXPIRED: "danger", FAILED: "danger", NOT_REQUIRED: "neutral",
-    HIGH: "danger", CRITICAL: "danger", MEDIUM: "warn", LOW: "neutral",
+    IN_SERVICE: "ok", MAINTENANCE: "warn", CALIBRATION: "info", DOWN: "danger", RETIRED: "neutral", DISPOSED: "neutral",
+    VALID: "ok", DUE_SOON: "warn", EXPIRED: "danger", NOT_REQUIRED: "neutral",
+    HIGH: "danger", MEDIUM: "warn", LOW: "neutral", CRITICAL: "danger",
     EXCELLENT: "ok", GOOD: "ok", FAIR: "warn", POOR: "danger",
-    REQUESTED: "warn", ON_LOAN: "info", RETURNED: "warn", COMPLETED: "neutral", UNUSED: "danger",
-    LOW_USAGE: "warn", BGS: "pine", SGB: "info", SERVICE: "neutral", RENTAL: "warn",
-    SCHEDULED: "info", IN_PROGRESS: "info", AWAITING_VERIFICATION: "warn", CLOSED: "neutral",
-    OPEN: "danger", ACKNOWLEDGED: "warn", WAITING_PART: "warn", WAITING_VENDOR: "warn", RESOLVED: "ok", VERIFIED: "ok",
-    ASSESSED: "info", AWAITING_APPROVAL: "warn", APPROVED: "ok", TESTING: "warn",
-    PENDING: "warn", REJECTED: "danger",
-    RECEIPT: "ok", RETURN: "ok", ISSUE: "info", CONSUMPTION: "info", ADJUSTMENT: "warn", STOCK_OPNAME: "info",
-    EXPIRED_TX: "danger", OPENING_BALANCE: "neutral",
-    ok: "ok", low: "warn", expiry: "danger", critical: "danger",
-    PREVENTIVE: "pine", CORRECTIVE: "warn", PREDICTIVE: "info",
-    PASS: "ok", ADJUSTED: "warn", CONDITIONAL: "warn",
-    DRAFT: "neutral", SUBMITTED: "info", REVIEWED: "warn", CONSOLIDATED: "pine", PO_CREATED: "pine",
-    SENT: "info", PARTIAL: "warn", RECEIVED: "ok", COUNTING: "warn",
-    IN_APPROVAL: "info",
-    DISPOSED: "neutral",
-    CONNECTED: "ok", DEGRADED: "warn", OFFLINE: "danger",
-    SYNCED: "ok", QUEUED: "warn", DOWNLOADED: "info", ASSIGNED: "neutral",
-    LELANG: "pine", HIBAH: "info", PEMUSNAHAN: "danger", PENJUALAN: "warn",
-    GEDUNG: "pine", RUANGAN: "info", ALKES: "ok", KENDARAAN: "warn",
+    SCHEDULED: "info", IN_PROGRESS: "info", CLOSED: "neutral",
+    OPEN: "danger", RESOLVED: "ok", ACKNOWLEDGED: "warn",
+    IN_APPROVAL: "info", APPROVED: "ok", REJECTED: "danger", PO_CREATED: "pine",
+    SENT: "info", RECEIVED: "ok", PENDING: "warn", DELIVERED: "info",
+    AKTIF: "ok", RENCANA: "info", NONAKTIF: "neutral", ACTIVE: "ok", PLANNED: "info", UNDER_RENOVATION: "warn", INACTIVE: "neutral",
+    RECEIPT: "ok", ISSUE: "info", CONSUMPTION: "info", ADJUSTMENT: "warn", OPENING_BALANCE: "neutral", STOCK_OPNAME: "info",
+    PREVENTIVE: "pine", CORRECTIVE: "warn",
+    DIAJUKAN: "warn", DIKIRIM: "info", DIGANTI: "ok", REFUND: "warn", DITUTUP: "neutral",
+    KURANG: "warn", RUSAK: "danger", BAIK: "ok",
+    VENDOR: "info", UNIT: "pine", DOCUMENT: "neutral", LIFECYCLE: "pine", PROCUREMENT: "info", COMPLAINT: "warn",
   };
   return map[status] ?? "neutral";
 }
+
+/* Label status Bahasa Indonesia */
+const STATUS_ID: Record<string, string> = {
+  IN_SERVICE: "Beroperasi", MAINTENANCE: "Perawatan", CALIBRATION: "Kalibrasi", DOWN: "Rusak", RETIRED: "Pensiun", DISPOSED: "Dihapus",
+  VALID: "Berlaku", DUE_SOON: "Segera Jatuh Tempo", EXPIRED: "Kadaluarsa", NOT_REQUIRED: "Tidak Perlu",
+  HIGH: "Tinggi", MEDIUM: "Sedang", LOW: "Rendah", CRITICAL: "Kritis",
+  EXCELLENT: "Sangat Baik", GOOD: "Baik", FAIR: "Cukup", POOR: "Buruk",
+  SCHEDULED: "Terjadwal", IN_PROGRESS: "Dikerjakan", CLOSED: "Selesai",
+  OPEN: "Terbuka", RESOLVED: "Terselesaikan", ACKNOWLEDGED: "Ditanggapi",
+  IN_APPROVAL: "Menunggu Persetujuan", APPROVED: "Disetujui", REJECTED: "Ditolak", PO_CREATED: "PO Dibuat",
+  SENT: "Terkirim", RECEIVED: "Diterima", PENDING: "Menunggu", DELIVERED: "Sampai",
+  AKTIF: "Aktif", RENCANA: "Rencana", NONAKTIF: "Nonaktif", ACTIVE: "Aktif", PLANNED: "Direncanakan", UNDER_RENOVATION: "Renovasi", INACTIVE: "Nonaktif",
+  DIAJUKAN: "Diajukan", DIKIRIM: "Dikirim", DIGANTI: "Diganti", DITUTUP: "Ditutup",
+  KURANG: "Kurang", RUSAK: "Rusak", BAIK: "Baik",
+  VENDOR: "Vendor", UNIT: "Unit", DOCUMENT: "Dokumen", LIFECYCLE: "Siklus Hidup", PROCUREMENT: "Pengadaan", COMPLAINT: "Keluhan",
+  PREVENTIVE: "Preventif", CORRECTIVE: "Korektif",
+  RECEIPT: "Penerimaan", ISSUE: "Pengeluaran", ADJUSTMENT: "Penyesuaian", OPENING_BALANCE: "Saldo Awal",
+};
+export const statusId = (status: string): string => STATUS_ID[status] ?? status.replace(/_/g, " ");
+
+export const StatusChip = ({ status, pulse, className }: { status: string; pulse?: boolean; className?: string }) => (
+  <Chip tone={chipFor(status)} dot pulse={pulse} className={className}>{statusId(status)}</Chip>
+);
 
 export function Chip({ tone, children, dot, pulse, className = "" }: { tone: Tone; children: React.ReactNode; dot?: boolean; pulse?: boolean; className?: string }) {
   return (
@@ -49,10 +63,6 @@ export function Chip({ tone, children, dot, pulse, className = "" }: { tone: Ton
     </span>
   );
 }
-
-export const StatusChip = ({ status, pulse, className = "" }: { status: string; pulse?: boolean; className?: string }) => (
-  <Chip tone={chipFor(status)} dot pulse={pulse} className={className}>{status.replace(/_/g, " ")}</Chip>
-);
 
 export const Card = ({ className = "", children }: { className?: string; children: React.ReactNode }) => (
   <div className={`rounded-lg border border-line bg-card shadow-[0_1px_2px_rgba(20,33,28,0.05)] ${className}`}>{children}</div>
@@ -78,7 +88,7 @@ export const Label = ({ children }: { children: React.ReactNode }) => (
 const fieldCls = "w-full rounded-md border border-line bg-card px-3 py-2 text-[13px] text-ink outline-none transition placeholder:text-mute/70 focus:border-pine-500 focus:ring-2 focus:ring-pine-500/25";
 export const Input = (p: React.InputHTMLAttributes<HTMLInputElement>) => <input {...p} className={`${fieldCls} ${p.className ?? ""}`} />;
 export const TextArea = (p: React.TextareaHTMLAttributes<HTMLTextAreaElement>) => <textarea {...p} className={`${fieldCls} min-h-[84px] ${p.className ?? ""}`} />;
-export const Select = (p: React.SelectHTMLAttributes<HTMLSelectElement>) => <select {...p} className={`${fieldCls} pr-8 ${p.className ?? ""}`} />;
+export const Select = (p: React.SelectHTMLAttributes<HTMLSelectElement>) => <select {...p} className={`${fieldCls} ${p.className ?? ""}`} />;
 
 const btnBase = "inline-flex items-center justify-center gap-1.5 rounded-md font-display text-[12.5px] font-bold tracking-tight transition active:translate-y-px disabled:cursor-not-allowed disabled:opacity-45";
 export const BtnPrimary = ({ className = "", ...p }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
@@ -86,9 +96,6 @@ export const BtnPrimary = ({ className = "", ...p }: React.ButtonHTMLAttributes<
 );
 export const BtnGhost = ({ className = "", ...p }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
   <button {...p} className={`${btnBase} border border-line bg-card px-3 py-1.5 text-ink2 hover:border-pine-500/50 hover:text-pine-700 ${className}`} />
-);
-export const BtnDanger = ({ className = "", ...p }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
-  <button {...p} className={`${btnBase} bg-danger px-3.5 py-2 text-white hover:bg-[#a03023] ${className}`} />
 );
 export const BtnSm = ({ className = "", ...p }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
   <button {...p} className={`${btnBase} border border-line bg-card px-2.5 py-1 text-[11.5px] text-ink2 hover:border-pine-500/60 hover:bg-pine-50 hover:text-pine-700 ${className}`} />
@@ -105,14 +112,14 @@ export function Modal({ open, onClose, title, kicker, children, footer, wide }: 
   }, [open, onClose]);
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-pine-950/55 p-4 pt-[7vh] backdrop-blur-[2px]" onMouseDown={onClose}>
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-pine-950/55 p-4 pt-[9vh] backdrop-blur-[2px]" onMouseDown={onClose}>
       <div className={`modal-in w-full ${wide ? "max-w-2xl" : "max-w-md"} rounded-xl border border-line bg-paper shadow-2xl`} onMouseDown={(e) => e.stopPropagation()}>
         <div className="flex items-start justify-between border-b border-line px-5 py-3.5">
           <div>
             {kicker && <div className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-pine-600">{kicker}</div>}
             <h3 className="font-display text-[15px] font-extrabold tracking-tight text-ink">{title}</h3>
           </div>
-          <button onClick={onClose} className="rounded p-1 text-mute transition hover:bg-moss hover:text-ink" aria-label="Close"><IcClose size={16} /></button>
+          <button onClick={onClose} className="rounded p-1 text-mute transition hover:bg-moss hover:text-ink" aria-label="Tutup"><X size={16} /></button>
         </div>
         <div className="px-5 py-4">{children}</div>
         {footer && <div className="flex justify-end gap-2 border-t border-line bg-canvas/60 px-5 py-3 rounded-b-xl">{footer}</div>}
@@ -165,22 +172,20 @@ export function ToastHost() {
   );
 }
 function ToastItem({ id, msg, kind, drop }: { id: string; msg: string; kind: "ok" | "warn" | "err" | "info"; drop: (id: string) => void }) {
-  useEffect(() => {
-    const h = setTimeout(() => drop(id), 4200);
-    return () => clearTimeout(h);
-  }, [id, drop]);
-  const icon = kind === "ok" ? <IcCheck size={14} /> : kind === "err" ? <IcClose size={14} /> : kind === "warn" ? <IcWarn size={14} /> : <IcBolt size={14} />;
+  useEffect(() => { const h = setTimeout(() => drop(id), 4200); return () => clearTimeout(h); }, [id, drop]);
+  const icon = kind === "ok" ? <Check size={14} /> : kind === "err" ? <X size={14} /> : kind === "warn" ? <AlertTriangle size={14} /> : <Info size={14} />;
   const tone = kind === "ok" ? "border-ok/30 text-ok" : kind === "err" ? "border-danger/30 text-danger" : kind === "warn" ? "border-warn/30 text-warn" : "border-info/30 text-info";
   return (
     <div className={`toast-in pointer-events-auto flex items-start gap-2.5 rounded-lg border bg-paper px-3.5 py-3 shadow-xl ${tone}`}>
       <span className="mt-0.5 shrink-0">{icon}</span>
       <p className="flex-1 text-[12.5px] leading-snug text-ink">{msg}</p>
-      <button onClick={() => drop(id)} className="shrink-0 text-mute transition hover:text-ink"><IcClose size={13} /></button>
+      <button onClick={() => drop(id)} className="shrink-0 text-mute transition hover:text-ink"><X size={13} /></button>
     </div>
   );
 }
 
-export function QRGlyph({ seed, size = 84 }: { seed: string; size?: number }) {
+/* Glyph QR deterministik per aset */
+export function QRGlyph({ seed, size = 84, tone = "#12362c" }: { seed: string; size?: number; tone?: string }) {
   const n = 15;
   let h = 2166136261;
   for (let i = 0; i < seed.length; i++) { h ^= seed.charCodeAt(i); h = Math.imul(h, 16777619); }
@@ -192,13 +197,13 @@ export function QRGlyph({ seed, size = 84 }: { seed: string; size?: number }) {
       if (!inFinder(r, c) && rand() > 0.52) cells.push(<rect key={`${r}-${c}`} x={c} y={r} width="0.92" height="0.92" />);
   const finder = (x: number, y: number) => (
     <g key={`f${x}${y}`}>
-      <rect x={x} y={y} width="4.6" height="4.6" fill="none" strokeWidth="0.9" stroke="currentColor" />
-      <rect x={x + 1.6} y={y + 1.6} width="1.4" height="1.4" fill="currentColor" stroke="none" />
+      <rect x={x} y={y} width="4.6" height="4.6" fill="none" strokeWidth="0.9" stroke={tone} />
+      <rect x={x + 1.6} y={y + 1.6} width="1.4" height="1.4" fill={tone} stroke="none" />
     </g>
   );
   return (
-    <svg viewBox={`-0.6 -0.6 ${n + 1.2} ${n + 1.2}`} width={size} height={size} className="text-pine-800">
-      <g fill="currentColor" stroke="currentColor">{cells}</g>
+    <svg viewBox={`-0.6 -0.6 ${n + 1.2} ${n + 1.2}`} width={size} height={size} aria-label={`QR ${seed}`}>
+      <g fill={tone} stroke={tone}>{cells}</g>
       {finder(0.2, 0.2)}{finder(n - 4.8, 0.2)}{finder(0.2, n - 4.8)}
     </svg>
   );
@@ -206,7 +211,7 @@ export function QRGlyph({ seed, size = 84 }: { seed: string; size?: number }) {
 
 export const EmptyState = ({ title, sub }: { title: string; sub?: string }) => (
   <div className="flex flex-col items-center justify-center gap-1 py-12 text-center">
-    <div className="mb-2 flex h-11 w-11 items-center justify-center rounded-full border border-dashed border-line2 text-mute"><IcWarn size={17} /></div>
+    <div className="mb-2 flex h-11 w-11 items-center justify-center rounded-full border border-dashed border-line2 text-mute"><Info size={17} /></div>
     <p className="font-display text-[13.5px] font-bold text-ink">{title}</p>
     {sub && <p className="max-w-xs text-xs text-mute">{sub}</p>}
   </div>
@@ -216,10 +221,9 @@ export function Kpi({ label, value, unit, delta, tone = "pine", spark, onClick }
   label: string; value: string; unit?: string; delta?: string; tone?: "pine" | "warn" | "danger" | "info";
   spark: number[]; onClick?: () => void;
 }) {
-  const deltaTone = delta?.startsWith("+") || delta?.startsWith("▲") ? "text-ok" : delta?.startsWith("−") || delta?.startsWith("▼") ? "text-danger" : "text-mute";
+  const deltaTone = delta?.startsWith("▲") ? "text-danger" : delta?.startsWith("▼") ? "text-ok" : "text-mute";
   return (
-    <button onClick={onClick}
-      className="group relative overflow-hidden rounded-lg border border-line bg-card p-4 text-left shadow-[0_1px_2px_rgba(20,33,28,0.05)] transition hover:-translate-y-0.5 hover:border-pine-500/40 hover:shadow-lg">
+    <button onClick={onClick} className="group relative overflow-hidden rounded-lg border border-line bg-card p-4 text-left shadow-[0_1px_2px_rgba(20,33,28,0.05)] transition hover:-translate-y-0.5 hover:border-pine-500/40 hover:shadow-lg">
       <div className="flex items-start justify-between gap-2">
         <div>
           <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-mute">{label}</p>
